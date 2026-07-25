@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 120" width="520" height="120" role="img" aria-label="Servicio Empresarial - Auditoría, Contabilidad, Tributación">
+  <rect width="520" height="120" fill="#FFFFFF"/>
+  <!-- Marca SE -->
+  <g transform="translate(10,14)">
+    <rect width="92" height="92" rx="20" fill="#0B2C4D"/>
+    <g transform="translate(-4,-4) scale(0.92)">
+      <path d="M44 40 C44 33 38 30 32 30 C24 30 20 34 20 40 C20 46 26 49 33 51 C40 53 46 55 46 61 C46 68 40 72 32 72 C25 72 20 69 19 63"
+            fill="none" stroke="#3EA6DD" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"
+            transform="translate(6,6)"/>
+      <g fill="#FFFFFF" transform="translate(6,6)">
+        <rect x="54" y="30" width="9" height="44" rx="1.5"/>
+        <rect x="54" y="30" width="28" height="9" rx="1.5"/>
+        <rect x="54" y="47.5" width="22" height="9" rx="1.5"/>
+        <rect x="54" y="65" width="28" height="9" rx="1.5"/>
+      </g>
+    </g>
+  </g>
+  <!-- Wordmark -->
+  <g transform="translate(122,0)" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+    <text x="0" y="54" font-size="30" font-weight="800" letter-spacing="0.5" fill="#0B2C4D">SERVICIO</text>
+    <text x="0" y="86" font-size="30" font-weight="800" letter-spacing="0.5" fill="#0B2C4D">EMPRESARIAL</text>
+    <text x="2" y="104" font-size="12.5" font-weight="600" letter-spacing="1.5" fill="#3EA6DD">AUDITORÍA · CONTABILIDAD · TRIBUTACIÓN</text>
+  </g>
+</svg>
