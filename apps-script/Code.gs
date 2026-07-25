@@ -1,12 +1,12 @@
 /**
- * Servicio Empresarial — Backend de escaneo de comprobantes.
+ * Servicio Empresarial - Backend de escaneo de comprobantes.
  *
  * Este script vive en la cuenta de Google de Servicio Empresarial y recibe los
- * comprobantes que envían los clientes desde la aplicación web. Cada comprobante
+ * comprobantes que envian los clientes desde la aplicacion web. Cada comprobante
  * se guarda en la carpeta de Google Drive indicada, dentro de una subcarpeta por
- * cliente. El texto detectado por OCR se guarda en la descripción del archivo.
+ * cliente. El texto detectado por OCR se guarda en la descripcion del archivo.
  *
- * Los clientes NO inician sesión con Google: el script se ejecuta siempre como
+ * Los clientes NO inician sesion con Google: el script se ejecuta siempre como
  * el propietario (ver README de despliegue).
  */
 
@@ -17,7 +17,7 @@ var FOLDER_ID = '1w4zPtnayNonsFU2-36EI-JWpQNKZbvDq';
 function doPost(e) {
   try {
     if (!e || !e.postData || !e.postData.contents) {
-      return jsonResponse({ ok: false, error: 'Petición vacía.' });
+      return jsonResponse({ ok: false, error: 'Peticion vacia.' });
     }
 
     var data = JSON.parse(e.postData.contents);
@@ -25,7 +25,7 @@ function doPost(e) {
     var archivo = data.archivo || {};
 
     if (!archivo.base64) {
-      return jsonResponse({ ok: false, error: 'No se recibió ninguna imagen.' });
+      return jsonResponse({ ok: false, error: 'No se recibio ninguna imagen.' });
     }
 
     var raiz = DriveApp.getFolderById(FOLDER_ID);
@@ -43,19 +43,19 @@ function doPost(e) {
       ok: true,
       url: file.getUrl(),
       fileId: file.getId(),
-      carpeta: carpetaCliente.getName(),
+      carpeta: carpetaCliente.getName()
     });
   } catch (err) {
     return jsonResponse({ ok: false, error: String(err && err.message ? err.message : err) });
   }
 }
 
-/** Verificación rápida del despliegue (abrir la URL en el navegador). */
+/** Verificacion rapida del despliegue (abrir la URL en el navegador). */
 function doGet() {
   return jsonResponse({
     ok: true,
-    servicio: 'Servicio Empresarial — Escaneo de comprobantes',
-    estado: 'activo',
+    servicio: 'Servicio Empresarial - Escaneo de comprobantes',
+    estado: 'activo'
   });
 }
 
@@ -91,20 +91,33 @@ function construirDescripcion(data) {
     'RUC/CI: ' + (c.ruc || ''),
     'Correo: ' + (c.email || ''),
     'Tipo: ' + (c.tipo || ''),
-    'Período: ' + (c.periodo || ''),
+    'Periodo: ' + (c.periodo || ''),
     'Nota: ' + (c.nota || ''),
     'Enviado: ' + (data.enviadoEn || ''),
     '',
     '--- Texto detectado (OCR) ---',
-    data.ocr || '(sin texto)',
+    data.ocr || '(sin texto)'
   ];
   return lineas.join('\n');
 }
 
+/** Quita caracteres no validos en nombres de carpeta (sin usar regex). */
 function sanitizar(texto) {
-  return String(texto)
-    .replace(/[\\/:*?"<>|]/g, ' ') // caracteres no válidos en nombres
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 80) || 'sin-dato';
+  var s = String(texto);
+  var invalidos = '\\/:*?"<>|';
+  var salida = '';
+  var espacioPrevio = false;
+  for (var i = 0; i < s.length; i++) {
+    var ch = s.charAt(i);
+    if (invalidos.indexOf(ch) >= 0) ch = ' ';
+    if (ch === ' ') {
+      if (!espacioPrevio) salida += ' ';
+      espacioPrevio = true;
+    } else {
+      salida += ch;
+      espacioPrevio = false;
+    }
+  }
+  salida = salida.trim().slice(0, 80);
+  return salida || 'sin-dato';
 }
