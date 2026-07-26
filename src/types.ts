@@ -11,9 +11,7 @@ export type TipoComprobante =
 export interface Cliente {
   nombre: string
   ruc: string
-  email: string
   tipo: TipoComprobante
-  nota: string
 }
 
 export type EstadoOCR = 'pendiente' | 'procesando' | 'listo' | 'error'

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Cliente, TipoComprobante } from '../types'
-import { calcularDV, emailValido, rucCompleto, TIPOS_COMPROBANTE } from '../lib/util'
+import { calcularDV, rucCompleto, TIPOS_COMPROBANTE } from '../lib/util'
 import { consultarRucSet, noConfigurada } from '../lib/set'
 import { BuscadorNombre } from './BuscadorNombre'
 
@@ -67,9 +67,8 @@ export function ClientForm({ valor, fotosCompartidas = 0, onContinuar }: Props) 
   const errores = {
     nombre: cliente.nombre.trim().length < 2 ? 'Ingrese su nombre o razón social.' : '',
     ruc: !rucValidoBase ? 'Ingrese su RUC o cédula (sin el dígito verificador).' : '',
-    email: !emailValido(cliente.email) ? 'El correo no es válido.' : '',
   }
-  const valido = !errores.nombre && !errores.ruc && !errores.email
+  const valido = !errores.nombre && !errores.ruc
 
   function set<K extends keyof Cliente>(campo: K, v: Cliente[K]) {
     setCliente((c) => ({ ...c, [campo]: v }))
@@ -198,22 +197,6 @@ export function ClientForm({ valor, fotosCompartidas = 0, onContinuar }: Props) 
       </div>
 
       <div>
-        <label htmlFor="email" className="field-label">
-          Correo electrónico
-        </label>
-        <input
-          id="email"
-          type="email"
-          className="field-input"
-          autoComplete="email"
-          placeholder="opcional"
-          value={cliente.email}
-          onChange={(e) => set('email', e.target.value)}
-        />
-        {tocado && errores.email && <p className="mt-1 text-sm text-red-600">{errores.email}</p>}
-      </div>
-
-      <div>
         <label htmlFor="tipo" className="field-label">
           Tipo de comprobante (por defecto)
         </label>
@@ -232,19 +215,6 @@ export function ClientForm({ valor, fotosCompartidas = 0, onContinuar }: Props) 
         <p className="mt-1 text-xs text-anthracite/50">
           Los comprobantes se archivan por fecha de envío.
         </p>
-      </div>
-
-      <div>
-        <label htmlFor="nota" className="field-label">
-          Nota (opcional)
-        </label>
-        <textarea
-          id="nota"
-          className="field-input min-h-[72px] resize-y"
-          placeholder="Cualquier detalle que quiera indicarnos…"
-          value={cliente.nota}
-          onChange={(e) => set('nota', e.target.value)}
-        />
       </div>
 
       <button type="submit" className="btn-primary w-full">

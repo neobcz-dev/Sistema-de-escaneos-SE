@@ -33,9 +33,7 @@ import { EMPRESA } from './config'
 const CLIENTE_INICIAL: Cliente = {
   nombre: '',
   ruc: '',
-  email: '',
   tipo: 'Factura',
-  nota: '',
 }
 
 // Caché de nombres de proveedor por RUC (evita consultas repetidas en el lote).

@@ -291,8 +291,6 @@ function construirDescripcion(data, tz) {
   var lineas = [
     'Cliente: ' + (c.nombre || ''),
     'RUC/CI cliente: ' + (c.ruc || ''),
-    'Correo: ' + (c.email || ''),
-    'Nota: ' + (c.nota || ''),
     'Recibido: ' + recibido,
     '',
     '--- Datos detectados ---',

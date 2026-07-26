@@ -41,9 +41,7 @@ export async function subirComprobante(
     cliente: {
       nombre: cliente.nombre,
       ruc: cliente.ruc,
-      email: cliente.email,
       tipo: cliente.tipo,
-      nota: cliente.nota,
     },
     detectado: {
       tipo: comp.tipo,

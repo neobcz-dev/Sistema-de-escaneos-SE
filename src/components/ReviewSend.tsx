@@ -66,14 +66,8 @@ export function ReviewSend({
         <dl className="grid grid-cols-3 gap-x-3 gap-y-2 text-sm">
           <Dato etiqueta="Cliente" valor={cliente.nombre} />
           <Dato etiqueta="RUC / C.I." valor={cliente.ruc} />
-          {cliente.email && <Dato etiqueta="Correo" valor={cliente.email} />}
           <Dato etiqueta="Comprobantes" valor={String(items.length)} />
         </dl>
-        {cliente.nota && (
-          <p className="rounded-lg bg-mist px-3 py-2 text-sm text-anthracite/80">
-            <span className="font-semibold text-navy">Nota:</span> {cliente.nota}
-          </p>
-        )}
       </div>
 
       <ul className="space-y-3">
