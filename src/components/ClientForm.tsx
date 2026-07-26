@@ -46,8 +46,9 @@ export function ClientForm({ valor, fotosCompartidas = 0, onContinuar }: Props) 
       }
       if (r.ok && r.razonSocial) {
         setConsultaSet({ estado: 'ok', razon: r.razonSocial })
-        // Autocompleta el nombre solo si está vacío (no pisa lo que el usuario escribió).
-        setCliente((c) => (c.nombre.trim() ? c : { ...c, nombre: r.razonSocial as string }))
+        // Fija el nombre OFICIAL (y lo bloquea) para no duplicar carpetas de
+        // clientes por errores de tipeo.
+        setCliente((c) => ({ ...c, nombre: r.razonSocial as string }))
       } else {
         setConsultaSet({ estado: 'error', msg: r.error })
       }
@@ -57,6 +58,9 @@ export function ClientForm({ valor, fotosCompartidas = 0, onContinuar }: Props) 
       clearTimeout(t)
     }
   }, [baseLimpia, dv, rucValidoBase])
+
+  // El nombre se bloquea cuando el RUC fue encontrado (nombre oficial).
+  const nombreBloqueado = consultaSet.estado === 'ok'
 
   const errores = {
     nombre: cliente.nombre.trim().length < 2 ? 'Ingrese su nombre o razón social.' : '',
@@ -138,20 +142,33 @@ export function ClientForm({ valor, fotosCompartidas = 0, onContinuar }: Props) 
         )}
       </div>
 
-      {/* 2) Nombre: se autocompleta desde el RUC; editable. */}
+      {/* 2) Nombre: si el RUC se encontró, se fija el nombre OFICIAL y se bloquea. */}
       <div>
         <label htmlFor="nombre" className="field-label">
           Nombre o razón social <span className="text-celeste-dark">*</span>
+          {nombreBloqueado && (
+            <span className="font-normal text-emerald-600"> · 🔒 oficial (no editable)</span>
+          )}
         </label>
         <input
           id="nombre"
-          className="field-input"
+          className={[
+            'field-input',
+            nombreBloqueado ? 'cursor-not-allowed bg-mist text-anthracite/70' : '',
+          ].join(' ')}
           autoComplete="organization"
           placeholder="Se completa con el RUC…"
           value={cliente.nombre}
+          readOnly={nombreBloqueado}
           onChange={(e) => set('nombre', e.target.value)}
         />
-        {tocado && errores.nombre && <p className="mt-1 text-sm text-red-600">{errores.nombre}</p>}
+        {nombreBloqueado ? (
+          <p className="mt-1 text-xs text-anthracite/50">
+            Nombre tomado del RUC para evitar carpetas duplicadas.
+          </p>
+        ) : (
+          tocado && errores.nombre && <p className="mt-1 text-sm text-red-600">{errores.nombre}</p>
+        )}
       </div>
 
       <div>
