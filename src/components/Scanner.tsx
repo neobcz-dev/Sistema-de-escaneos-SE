@@ -10,7 +10,11 @@ interface Props {
   onAgregarArchivos: (files: FileList | File[], autoRecorte?: boolean) => void
   onEliminar: (id: string) => void
   onEditarOCR: (id: string, texto: string) => void
-  onEditarCampo: (id: string, campo: 'rucProveedor' | 'nroFactura', valor: string) => void
+  onEditarCampo: (
+    id: string,
+    campo: 'rucProveedor' | 'nombreProveedor' | 'nroFactura',
+    valor: string,
+  ) => void
   onEditarTipo: (id: string, tipo: TipoComprobante) => void
   onReemplazarImagen: (id: string, img: ImagenProcesada) => void
   onAtras: () => void
@@ -114,7 +118,7 @@ export function Scanner({
                         ))}
                       </select>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="field-label text-xs">RUC proveedor</label>
                         <input
@@ -139,6 +143,15 @@ export function Scanner({
                           onChange={(e) => onEditarCampo(c.id, 'nroFactura', e.target.value)}
                         />
                       </div>
+                    </div>
+                    <div>
+                      <label className="field-label text-xs">Nombre del proveedor</label>
+                      <input
+                        className="field-input py-2 text-sm"
+                        placeholder="Se busca por el RUC…"
+                        value={c.nombreProveedor}
+                        onChange={(e) => onEditarCampo(c.id, 'nombreProveedor', e.target.value)}
+                      />
                     </div>
                   </div>
                 </div>

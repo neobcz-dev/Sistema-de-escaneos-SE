@@ -97,6 +97,48 @@ export function ClientForm({ valor, fotosCompartidas = 0, onContinuar }: Props) 
         </div>
       )}
 
+      {/* 1) RUC primero: con él buscamos el nombre automáticamente. */}
+      <div>
+        <label htmlFor="ruc" className="field-label">
+          RUC o C.I. <span className="text-celeste-dark">*</span>
+          <span className="font-normal text-anthracite/50"> (sin dígito verificador)</span>
+        </label>
+        <div className="flex items-stretch">
+          <input
+            id="ruc"
+            className="field-input rounded-r-none"
+            inputMode="numeric"
+            autoFocus
+            placeholder="Ej.: 80012345"
+            value={rucBase}
+            onChange={(e) => setRucBase(e.target.value)}
+          />
+          <span
+            className="flex min-w-[3.2rem] items-center justify-center rounded-r-xl border border-l-0 border-anthracite/15 bg-mist px-2 font-bold text-navy"
+            title="Dígito verificador calculado automáticamente"
+          >
+            {dv !== null && rucValidoBase ? `-${dv}` : '-?'}
+          </span>
+        </div>
+        {rucValidoBase && dv !== null ? (
+          <p className="mt-1 text-xs text-emerald-600">
+            RUC completo: <strong>{baseLimpia}-{dv}</strong>
+          </p>
+        ) : (
+          tocado && errores.ruc && <p className="mt-1 text-sm text-red-600">{errores.ruc}</p>
+        )}
+        {consultaSet.estado === 'buscando' && (
+          <p className="mt-1 flex items-center gap-1.5 text-xs text-celeste-dark">
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-celeste border-t-transparent" />
+            Buscando el nombre…
+          </p>
+        )}
+        {consultaSet.estado === 'ok' && consultaSet.razon && (
+          <p className="mt-1 text-xs font-medium text-emerald-700">✓ {consultaSet.razon}</p>
+        )}
+      </div>
+
+      {/* 2) Nombre: se autocompleta desde el RUC; editable. */}
       <div>
         <label htmlFor="nombre" className="field-label">
           Nombre o razón social <span className="text-celeste-dark">*</span>
@@ -105,67 +147,27 @@ export function ClientForm({ valor, fotosCompartidas = 0, onContinuar }: Props) 
           id="nombre"
           className="field-input"
           autoComplete="organization"
-          placeholder="Ej.: Comercial San Miguel S.A."
+          placeholder="Se completa con el RUC…"
           value={cliente.nombre}
           onChange={(e) => set('nombre', e.target.value)}
         />
         {tocado && errores.nombre && <p className="mt-1 text-sm text-red-600">{errores.nombre}</p>}
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div>
-          <label htmlFor="ruc" className="field-label">
-            RUC o C.I. <span className="text-celeste-dark">*</span>
-            <span className="font-normal text-anthracite/50"> (sin dígito verificador)</span>
-          </label>
-          <div className="flex items-stretch">
-            <input
-              id="ruc"
-              className="field-input rounded-r-none"
-              inputMode="numeric"
-              placeholder="Ej.: 80012345"
-              value={rucBase}
-              onChange={(e) => setRucBase(e.target.value)}
-            />
-            <span
-              className="flex min-w-[3.2rem] items-center justify-center rounded-r-xl border border-l-0 border-anthracite/15 bg-mist px-2 font-bold text-navy"
-              title="Dígito verificador calculado automáticamente"
-            >
-              {dv !== null && rucValidoBase ? `-${dv}` : '-?'}
-            </span>
-          </div>
-          {rucValidoBase && dv !== null ? (
-            <p className="mt-1 text-xs text-emerald-600">
-              RUC completo: <strong>{baseLimpia}-{dv}</strong>
-            </p>
-          ) : (
-            tocado && errores.ruc && <p className="mt-1 text-sm text-red-600">{errores.ruc}</p>
-          )}
-          {consultaSet.estado === 'buscando' && (
-            <p className="mt-1 flex items-center gap-1.5 text-xs text-celeste-dark">
-              <span className="h-3 w-3 animate-spin rounded-full border-2 border-celeste border-t-transparent" />
-              Buscando el nombre…
-            </p>
-          )}
-          {consultaSet.estado === 'ok' && consultaSet.razon && (
-            <p className="mt-1 text-xs font-medium text-emerald-700">✓ {consultaSet.razon}</p>
-          )}
-        </div>
-        <div>
-          <label htmlFor="email" className="field-label">
-            Correo electrónico
-          </label>
-          <input
-            id="email"
-            type="email"
-            className="field-input"
-            autoComplete="email"
-            placeholder="opcional"
-            value={cliente.email}
-            onChange={(e) => set('email', e.target.value)}
-          />
-          {tocado && errores.email && <p className="mt-1 text-sm text-red-600">{errores.email}</p>}
-        </div>
+      <div>
+        <label htmlFor="email" className="field-label">
+          Correo electrónico
+        </label>
+        <input
+          id="email"
+          type="email"
+          className="field-input"
+          autoComplete="email"
+          placeholder="opcional"
+          value={cliente.email}
+          onChange={(e) => set('email', e.target.value)}
+        />
+        {tocado && errores.email && <p className="mt-1 text-sm text-red-600">{errores.email}</p>}
       </div>
 
       <div>

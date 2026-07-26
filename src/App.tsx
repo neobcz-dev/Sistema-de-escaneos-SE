@@ -10,6 +10,7 @@ import { procesarImagen, type ImagenProcesada } from './lib/image'
 import { reconocerTexto } from './lib/ocr'
 import { crearPdfBuscable } from './lib/pdf'
 import { detectarDatos, detectarTipo } from './lib/parse'
+import { consultarRucSet } from './lib/set'
 import { subirComprobante } from './lib/upload'
 import { nuevoId, selloTiempo, slug } from './lib/util'
 import type { TipoComprobante } from './types'
@@ -22,6 +23,9 @@ const CLIENTE_INICIAL: Cliente = {
   tipo: 'Factura',
   nota: '',
 }
+
+// Caché de nombres de proveedor por RUC (evita consultas repetidas en el lote).
+const cacheProveedor = new Map<string, string>()
 
 export default function App() {
   const [paso, setPaso] = useState(0)
@@ -78,8 +82,29 @@ export default function App() {
           // Si el OCR detecta el tipo, lo usamos; si no, dejamos el actual.
           ...(tipoDetectado ? { tipo: tipoDetectado } : {}),
         })
+        if (d.rucProveedor) buscarNombreProveedor(id, d.rucProveedor)
       })
       .catch(() => actualizarItem(id, { ocrEstado: 'error', ocrProgreso: 1 }))
+  }
+
+  /** Busca el nombre del proveedor en TuRUC a partir del RUC detectado. */
+  async function buscarNombreProveedor(id: string, rucProveedor: string) {
+    const g = rucProveedor.lastIndexOf('-')
+    if (g <= 0) return
+    const base = rucProveedor.slice(0, g)
+    const dv = Number(rucProveedor.slice(g + 1))
+    if (Number.isNaN(dv)) return
+
+    const clave = `${base}-${dv}`
+    const enCache = cacheProveedor.get(clave)
+    if (enCache !== undefined) {
+      if (enCache) actualizarItem(id, { nombreProveedor: enCache })
+      return
+    }
+    const r = await consultarRucSet(base, dv)
+    const nombre = r.ok && r.razonSocial ? r.razonSocial : ''
+    cacheProveedor.set(clave, nombre)
+    if (nombre) actualizarItem(id, { nombreProveedor: nombre })
   }
 
   async function agregarArchivos(files: FileList | File[], autoRecorte = true) {
@@ -101,6 +126,7 @@ export default function App() {
           ocrProgreso: 0,
           tipo: cliente.tipo, // valor por defecto hasta que el OCR detecte
           rucProveedor: '',
+          nombreProveedor: '',
           nroFactura: '',
           timbrado: '',
           subida: 'pendiente',
@@ -131,7 +157,11 @@ export default function App() {
     actualizarItem(id, { ocrTexto: texto })
   }
 
-  function editarCampo(id: string, campo: 'rucProveedor' | 'nroFactura', valor: string) {
+  function editarCampo(
+    id: string,
+    campo: 'rucProveedor' | 'nombreProveedor' | 'nroFactura',
+    valor: string,
+  ) {
     actualizarItem(id, { [campo]: valor })
   }
 
@@ -147,8 +177,17 @@ export default function App() {
       if (it.subida === 'ok') continue
       actualizarItem(it.id, { subida: 'subiendo', errorSubida: undefined })
       try {
-        // PDF buscable: imagen + capa de texto invisible del OCR.
-        const pdf = await crearPdfBuscable(it.dataUrl, it.width, it.height, it.ocrPalabras)
+        // Texto extra buscable: nombre del proveedor + datos clave.
+        const extra = [
+          it.nombreProveedor,
+          it.rucProveedor && `RUC ${it.rucProveedor}`,
+          it.tipo,
+          it.nroFactura,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+        // PDF buscable: imagen + capa de texto invisible del OCR + texto extra.
+        const pdf = await crearPdfBuscable(it.dataUrl, it.width, it.height, it.ocrPalabras, extra)
         const r = await subirComprobante(cliente, it, pdf, i + 1, total)
         if (r.ok) actualizarItem(it.id, { subida: 'ok', urlDrive: r.url })
         else actualizarItem(it.id, { subida: 'error', errorSubida: r.error })

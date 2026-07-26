@@ -171,6 +171,7 @@ function construirDescripcion(data, tz) {
     '',
     '--- Datos detectados ---',
     'Tipo: ' + (d.tipo || c.tipo || ''),
+    'Proveedor: ' + (d.nombreProveedor || '(no encontrado)'),
     'RUC proveedor: ' + (d.rucProveedor || '(no detectado)'),
     'N comprobante: ' + (d.nroFactura || '(no detectado)'),
     'Timbrado: ' + (d.timbrado || '(no detectado)'),

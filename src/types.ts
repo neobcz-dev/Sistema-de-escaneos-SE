@@ -44,6 +44,7 @@ export interface Comprobante {
   // Datos detectados automáticamente (editables por el usuario)
   tipo: TipoComprobante
   rucProveedor: string
+  nombreProveedor: string
   nroFactura: string
   timbrado: string
   subida: EstadoSubida

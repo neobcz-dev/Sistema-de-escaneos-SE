@@ -11,6 +11,7 @@ export async function crearPdfBuscable(
   width: number,
   height: number,
   palabras: PalabraOCR[],
+  extraTexto = '',
 ): Promise<Blob> {
   const orientation = width >= height ? 'landscape' : 'portrait'
   const pdf = new jsPDF({ orientation, unit: 'px', format: [width, height] })
@@ -18,8 +19,19 @@ export async function crearPdfBuscable(
   // Fondo: la imagen del comprobante ocupando toda la página.
   pdf.addImage(dataUrl, 'JPEG', 0, 0, width, height)
 
-  // Capa de texto invisible, palabra por palabra en su posición.
+  // Texto extra invisible (ej. nombre del proveedor) para que sea buscable en
+  // Drive aunque el OCR no lo haya leído bien de la imagen.
   pdf.setTextColor(0, 0, 0)
+  if (extraTexto.trim()) {
+    try {
+      pdf.setFontSize(10)
+      pdf.text(extraTexto.trim(), 4, 12, { renderingMode: 'invisible', maxWidth: width })
+    } catch {
+      // ignorar caracteres no soportados
+    }
+  }
+
+  // Capa de texto invisible, palabra por palabra en su posición.
   for (const w of palabras) {
     const { x0, y0, x1, y1 } = w.bbox
     const h = y1 - y0

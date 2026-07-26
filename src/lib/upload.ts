@@ -48,6 +48,7 @@ export async function subirComprobante(
     detectado: {
       tipo: comp.tipo,
       rucProveedor: comp.rucProveedor,
+      nombreProveedor: comp.nombreProveedor,
       nroFactura: comp.nroFactura,
       timbrado: comp.timbrado,
     },
