@@ -1,5 +1,6 @@
 /** Utilidades de imagen: carga, compresión, rotación, recorte (auto y manual)
  *  y filtro "documento" con umbral adaptativo. */
+import { extraerDocumento, opencvListo } from './scanner'
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -49,7 +50,23 @@ export async function procesarImagen(
   try {
     const img = await loadImage(src)
 
-    // Canvas a resolución original (limitada) para poder analizar/recortar.
+    // 1) Escáner (OpenCV + jscanify): recorta y ENDEREZA el documento.
+    // Solo si OpenCV YA está cargado (se carga al abrir la cámara). Así nunca
+    // congelamos la interfaz cargándolo aquí; si no está, usamos el detector
+    // simple más abajo.
+    if (autoRecorte && opencvListo()) {
+      try {
+        const doc = await Promise.race([
+          extraerDocumento(img),
+          new Promise<null>((r) => setTimeout(() => r(null), 12000)),
+        ])
+        if (doc) return await escalarCanvas(doc, maxDim, quality)
+      } catch {
+        // seguimos con el detector simple
+      }
+    }
+
+    // 2) Respaldo: detector de hoja por componente conectado (sin enderezar).
     const base = document.createElement('canvas')
     base.width = img.width
     base.height = img.height
@@ -57,7 +74,6 @@ export async function procesarImagen(
     if (!bctx) throw new Error('El navegador no soporta procesamiento de imágenes.')
     bctx.drawImage(img, 0, 0)
 
-    // Región a conservar (por defecto, todo).
     let sx = 0
     let sy = 0
     let sw = img.width
@@ -72,7 +88,6 @@ export async function procesarImagen(
       }
     }
 
-    // Escalado final.
     const largest = Math.max(sw, sh)
     const scale = largest > maxDim ? maxDim / largest : 1
     const outW = Math.max(1, Math.round(sw * scale))
@@ -89,6 +104,25 @@ export async function procesarImagen(
   } finally {
     if (typeof file !== 'string') URL.revokeObjectURL(src)
   }
+}
+
+/** Escala un canvas a un lado máximo y lo comprime a JPEG. */
+async function escalarCanvas(
+  cnv: HTMLCanvasElement,
+  maxDim: number,
+  quality: number,
+): Promise<ImagenProcesada> {
+  const largest = Math.max(cnv.width, cnv.height)
+  const scale = largest > maxDim ? maxDim / largest : 1
+  const outW = Math.max(1, Math.round(cnv.width * scale))
+  const outH = Math.max(1, Math.round(cnv.height * scale))
+  if (scale === 1) return canvasAImagen(cnv, quality)
+  const out = document.createElement('canvas')
+  out.width = outW
+  out.height = outH
+  const ctx = out.getContext('2d')!
+  ctx.drawImage(cnv, 0, 0, outW, outH)
+  return canvasAImagen(out, quality)
 }
 
 export interface OpcionesEdicion {

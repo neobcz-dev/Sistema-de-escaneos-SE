@@ -6,7 +6,7 @@ import { Scanner } from './components/Scanner'
 import { ReviewSend } from './components/ReviewSend'
 import { InstallButton } from './components/InstallButton'
 import type { Cliente, Comprobante } from './types'
-import { procesarImagen, type ImagenProcesada } from './lib/image'
+import { editarImagen, procesarImagen, type ImagenProcesada } from './lib/image'
 import { reconocerTexto } from './lib/ocr'
 import { crearPdfBuscable } from './lib/pdf'
 import { detectarDatos, detectarTipo } from './lib/parse'
@@ -65,9 +65,17 @@ export default function App() {
   }
 
   /** Ejecuta OCR sobre la imagen y autocompleta los datos detectados. */
-  function ejecutarOCR(id: string, blob: Blob) {
+  async function ejecutarOCR(id: string, dataUrl: string) {
     actualizarItem(id, { ocrEstado: 'procesando', ocrProgreso: 0 })
-    reconocerTexto(blob, (p) => actualizarItem(id, { ocrProgreso: p }))
+    // OCR sobre una versión binarizada (mejor lectura, sobre todo en térmicos).
+    let fuente: Blob | string = dataUrl
+    try {
+      const bin = await editarImagen(dataUrl, { escaneo: true, maxDim: 2400 })
+      fuente = bin.blob
+    } catch {
+      fuente = dataUrl
+    }
+    reconocerTexto(fuente, (p) => actualizarItem(id, { ocrProgreso: p }))
       .then(({ texto, palabras }) => {
         const d = detectarDatos(texto, cliente.ruc)
         const tipoDetectado = detectarTipo(texto)
@@ -132,7 +140,7 @@ export default function App() {
           subida: 'pendiente',
         }
         setItems((prev) => [...prev, nuevo])
-        ejecutarOCR(id, img.blob)
+        ejecutarOCR(id, img.dataUrl)
       } catch (e) {
         console.error('No se pudo procesar la imagen', e)
       }
@@ -146,7 +154,7 @@ export default function App() {
       width: img.width,
       height: img.height,
     })
-    ejecutarOCR(id, img.blob) // el recorte cambia el contenido: re-leemos
+    ejecutarOCR(id, img.dataUrl) // el recorte cambia el contenido: re-leemos
   }
 
   function eliminarItem(id: string) {

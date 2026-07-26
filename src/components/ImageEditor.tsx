@@ -147,7 +147,7 @@ export function ImageEditor({ src, onAplicar, onCancelar }: Props) {
           />
           {/* Overlay de recorte */}
           <div
-            className="absolute cursor-move border-2 border-celeste"
+            className="absolute cursor-move touch-none border-2 border-celeste bg-celeste/5"
             style={{ left: pct(crop.x), top: pct(crop.y), width: pct(crop.w), height: pct(crop.h) }}
             onPointerDown={(e) => iniciarArrastre('move', e)}
           >
@@ -155,9 +155,11 @@ export function ImageEditor({ src, onAplicar, onCancelar }: Props) {
               <span
                 key={h}
                 onPointerDown={(e) => iniciarArrastre(h, e)}
-                className="absolute h-6 w-6 rounded-full border-2 border-navy bg-celeste"
+                className="absolute flex h-10 w-10 touch-none items-center justify-center"
                 style={esquinaEstilo(h)}
-              />
+              >
+                <span className="h-6 w-6 rounded-full border-2 border-navy bg-celeste shadow" />
+              </span>
             ))}
           </div>
         </div>
@@ -184,7 +186,7 @@ export function ImageEditor({ src, onAplicar, onCancelar }: Props) {
 }
 
 function esquinaEstilo(h: 'nw' | 'ne' | 'sw' | 'se'): React.CSSProperties {
-  const off = -12
+  const off = -20
   switch (h) {
     case 'nw':
       return { left: off, top: off }

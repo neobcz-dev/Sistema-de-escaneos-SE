@@ -18,6 +18,7 @@ export default defineConfig({
       includeAssets: ['favicon.svg', 'logo.svg'],
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        globIgnores: ['**/opencv.js'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
       manifest: {
