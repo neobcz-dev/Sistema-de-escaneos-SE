@@ -13,7 +13,7 @@ import { crearPdfBuscable } from './lib/pdf'
 import { detectarDatos, detectarTipo } from './lib/parse'
 import { consultarRucSet } from './lib/set'
 import { subirComprobante } from './lib/upload'
-import { nuevoId, selloTiempo, slug } from './lib/util'
+import { calcularDV, nuevoId, selloTiempo, slug } from './lib/util'
 import type { TipoComprobante } from './types'
 import { EMPRESA } from './config'
 
@@ -102,24 +102,35 @@ export default function App() {
     if (d.rucProveedor) buscarNombreProveedor(id, d.rucProveedor)
   }
 
-  /** Busca el nombre del proveedor en TuRUC a partir del RUC detectado. */
+  /** Busca el nombre del proveedor en TuRUC a partir del RUC (con o sin DV). */
   async function buscarNombreProveedor(id: string, rucProveedor: string) {
-    const g = rucProveedor.lastIndexOf('-')
-    if (g <= 0) return
-    const base = rucProveedor.slice(0, g)
-    const dv = Number(rucProveedor.slice(g + 1))
+    const limpio = (rucProveedor || '').trim()
+    if (!/\d{4,}/.test(limpio)) {
+      actualizarItem(id, { nombreProveedor: '' })
+      return
+    }
+    const g = limpio.lastIndexOf('-')
+    let base: string
+    let dv: number
+    if (g > 0) {
+      base = limpio.slice(0, g)
+      dv = Number(limpio.slice(g + 1))
+    } else {
+      base = limpio
+      dv = calcularDV(limpio) // si falta el DV, lo calculamos
+    }
     if (Number.isNaN(dv)) return
 
     const clave = `${base}-${dv}`
     const enCache = cacheProveedor.get(clave)
     if (enCache !== undefined) {
-      if (enCache) actualizarItem(id, { nombreProveedor: enCache })
+      actualizarItem(id, { nombreProveedor: enCache })
       return
     }
     const r = await consultarRucSet(base, dv)
     const nombre = r.ok && r.razonSocial ? r.razonSocial : ''
     cacheProveedor.set(clave, nombre)
-    if (nombre) actualizarItem(id, { nombreProveedor: nombre })
+    actualizarItem(id, { nombreProveedor: nombre })
   }
 
   async function agregarArchivos(files: FileList | File[], autoRecorte = true) {
@@ -260,6 +271,7 @@ export default function App() {
             onEditarOCR={editarOCR}
             onEditarCampo={editarCampo}
             onEditarTipo={editarTipo}
+            onBuscarProveedor={buscarNombreProveedor}
             onReemplazarImagen={reemplazarImagen}
             onAtras={() => setPaso(0)}
             onContinuar={() => setPaso(2)}

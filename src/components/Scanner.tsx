@@ -16,6 +16,7 @@ interface Props {
     valor: string,
   ) => void
   onEditarTipo: (id: string, tipo: TipoComprobante) => void
+  onBuscarProveedor: (id: string, ruc: string) => void
   onReemplazarImagen: (id: string, img: ImagenProcesada) => void
   onAtras: () => void
   onContinuar: () => void
@@ -28,6 +29,7 @@ export function Scanner({
   onEditarOCR,
   onEditarCampo,
   onEditarTipo,
+  onBuscarProveedor,
   onReemplazarImagen,
   onAtras,
   onContinuar,
@@ -126,6 +128,7 @@ export function Scanner({
                           placeholder={c.ocrEstado === 'procesando' ? '…' : 'No detectado'}
                           value={c.rucProveedor}
                           onChange={(e) => onEditarCampo(c.id, 'rucProveedor', e.target.value)}
+                          onBlur={(e) => onBuscarProveedor(c.id, e.target.value)}
                         />
                       </div>
                       <div>

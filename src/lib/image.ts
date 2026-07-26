@@ -1,6 +1,6 @@
 /** Utilidades de imagen: carga, compresión, rotación, recorte (auto y manual)
  *  y filtro "documento" con umbral adaptativo. */
-import { extraerDocumento, opencvListo } from './scanner'
+import { extraerDocumento } from './scanner'
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -51,18 +51,17 @@ export async function procesarImagen(
     const img = await loadImage(src)
 
     // 1) Escáner (OpenCV + jscanify): recorta y ENDEREZA el documento.
-    // Solo si OpenCV YA está cargado (se carga al abrir la cámara). Así nunca
-    // congelamos la interfaz cargándolo aquí; si no está, usamos el detector
-    // simple más abajo.
-    if (autoRecorte && opencvListo()) {
+    // Se carga bajo demanda (no en segundo plano). Las fotos se procesan de a
+    // una (ver App), así OpenCV se carga una sola vez y se reutiliza.
+    if (autoRecorte) {
       try {
         const doc = await Promise.race([
           extraerDocumento(img),
-          new Promise<null>((r) => setTimeout(() => r(null), 12000)),
+          new Promise<null>((r) => setTimeout(() => r(null), 20000)),
         ])
         if (doc) return await escalarCanvas(doc, maxDim, quality)
       } catch {
-        // seguimos con el detector simple
+        // sin OpenCV o sin detección: seguimos con el detector simple
       }
     }
 
