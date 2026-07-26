@@ -13,10 +13,6 @@
 // === Carpeta destino en Google Drive (Servicio Empresarial) ===
 var FOLDER_ID = '1w4zPtnayNonsFU2-36EI-JWpQNKZbvDq';
 
-// === APIKEY del servicio de Consulta Publica de la SET (Sistema Marangatu) ===
-// Deje '' para desactivar la consulta de RUC. Peguela aqui cuando la obtenga.
-var SET_APIKEY = '';
-
 /** Punto de entrada para las subidas (POST desde la app). */
 function doPost(e) {
   try {
@@ -122,34 +118,44 @@ function nombreUnico(carpeta, nombre) {
 }
 
 /**
- * Consulta el RUC en el servicio publico de la SET y devuelve la razon social.
- * Requiere SET_APIKEY configurada. El apiKey NUNCA sale de este servidor.
+ * Consulta el RUC en TuRUC (API publica y gratuita, sin API key) y devuelve la
+ * razon social. Se usa como respaldo cuando el navegador no puede llamar
+ * directo por CORS. Parser tolerante a distintos nombres de campo.
  */
 function consultarRuc(ruc, dv) {
-  if (!SET_APIKEY) return { ok: false, error: 'Consulta de RUC no configurada.' };
   if (!ruc || dv === undefined || dv === null || dv === '') {
     return { ok: false, error: 'Faltan RUC o DV.' };
   }
   try {
-    var url =
-      'https://servicios.set.gov.py/EsetApiWS/ApiWS/consultaRUC' +
-      '?apiKey=' + encodeURIComponent(SET_APIKEY) +
-      '&ruc=' + encodeURIComponent(String(ruc)) +
-      '&dv=' + encodeURIComponent(String(dv));
-    var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-    var json = JSON.parse(resp.getContentText());
-    if (json && json.estado === 'VALIDO' && json.contribuyente) {
-      return {
-        ok: true,
-        razonSocial: json.contribuyente.razonSocial || '',
-        estadoRuc: json.contribuyente.estado || '',
-        nombreComercial: json.contribuyente.nombreComercial || ''
-      };
+    var rucCompleto = String(ruc) + '-' + String(dv);
+    var url = 'https://turuc.com.py/api/contribuyente/' + encodeURIComponent(rucCompleto);
+    var resp = UrlFetchApp.fetch(url, {
+      muteHttpExceptions: true,
+      headers: { 'Accept': 'application/json' }
+    });
+    var code = resp.getResponseCode();
+    var texto = resp.getContentText();
+    if (code < 200 || code >= 300) {
+      return { ok: false, error: 'RUC no encontrado (' + code + ').' };
     }
-    return { ok: false, error: (json && json.mensaje) || 'RUC no encontrado.' };
+    var json = JSON.parse(texto);
+    var obj = (json && (json.contribuyente || json.data || json.result)) || json;
+    var razon = primerValor(obj, ['razonSocial', 'razon_social', 'razonsocial', 'razon', 'denominacion', 'nombre', 'nombre_completo', 'nombreCompleto']);
+    var estado = primerValor(obj, ['estado', 'situacion', 'status']);
+    if (razon) return { ok: true, razonSocial: razon, estadoRuc: estado || '' };
+    return { ok: false, error: 'Respuesta sin razon social.', raw: texto.slice(0, 300) };
   } catch (err) {
-    return { ok: false, error: 'Error al consultar la SET: ' + String(err) };
+    return { ok: false, error: 'Error al consultar TuRUC: ' + String(err) };
   }
+}
+
+function primerValor(obj, claves) {
+  if (!obj) return '';
+  for (var i = 0; i < claves.length; i++) {
+    var v = obj[claves[i]];
+    if (typeof v === 'string' && v) return v;
+  }
+  return '';
 }
 
 function construirDescripcion(data, tz) {

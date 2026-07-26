@@ -144,16 +144,11 @@ export function ClientForm({ valor, fotosCompartidas = 0, onContinuar }: Props) 
           {consultaSet.estado === 'buscando' && (
             <p className="mt-1 flex items-center gap-1.5 text-xs text-celeste-dark">
               <span className="h-3 w-3 animate-spin rounded-full border-2 border-celeste border-t-transparent" />
-              Consultando la SET…
+              Buscando el nombre…
             </p>
           )}
           {consultaSet.estado === 'ok' && consultaSet.razon && (
-            <p className="mt-1 text-xs font-medium text-emerald-700">
-              ✓ SET: {consultaSet.razon}
-            </p>
-          )}
-          {consultaSet.estado === 'error' && (
-            <p className="mt-1 text-xs text-amber-600">SET: {consultaSet.msg}</p>
+            <p className="mt-1 text-xs font-medium text-emerald-700">✓ {consultaSet.razon}</p>
           )}
         </div>
         <div>
