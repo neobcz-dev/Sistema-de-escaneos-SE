@@ -205,11 +205,17 @@ export function ClientForm({ valor, fotosCompartidas = 0, onContinuar }: Props) 
           type="email"
           className="field-input"
           autoComplete="email"
-          placeholder="opcional"
+          placeholder="su-correo@gmail.com"
           value={cliente.email}
           onChange={(e) => set('email', e.target.value)}
         />
-        {tocado && errores.email && <p className="mt-1 text-sm text-red-600">{errores.email}</p>}
+        {tocado && errores.email ? (
+          <p className="mt-1 text-sm text-red-600">{errores.email}</p>
+        ) : (
+          <p className="mt-1 text-xs text-anthracite/50">
+            Con su correo de Google podrá ver sus comprobantes en Drive (solo su carpeta).
+          </p>
+        )}
       </div>
 
       <div>
