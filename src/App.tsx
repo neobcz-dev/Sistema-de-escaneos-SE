@@ -172,8 +172,13 @@ export default function App() {
   }
 
   async function agregarArchivos(files: FileList | File[], autoDetectar = true) {
-    const lista = Array.from(files).filter((f) => f.type.startsWith('image/'))
+    const esPdf = (f: File) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name)
+    const lista = Array.from(files).filter((f) => f.type.startsWith('image/') || esPdf(f))
     for (const file of lista) {
+      if (esPdf(file)) {
+        await agregarPdf(file)
+        continue
+      }
       const id = nuevoId()
       try {
         // Foto completa con la orientación EXIF ya aplicada.
@@ -243,6 +248,65 @@ export default function App() {
     }
   }
 
+  /**
+   * Agrega una factura electrónica en PDF: la vista previa es la 1ª página y
+   * el texto se toma del propio PDF (sin OCR). Si el PDF no trae texto (es un
+   * escaneo), se hace OCR sobre la imagen renderizada. El PDF original se sube
+   * tal cual, solo renombrado con la misma lógica que los demás comprobantes.
+   */
+  async function agregarPdf(file: File) {
+    const id = nuevoId()
+    try {
+      const { importarPdf } = await import('./lib/pdfImport')
+      const imp = await importarPdf(file)
+      const conTexto = imp.texto.trim().length > 20
+
+      const nuevo: Comprobante = {
+        id,
+        nombreArchivo: construirNombre(cliente, id),
+        dataUrl: imp.dataUrl,
+        originalDataUrl: imp.dataUrl,
+        baseEdicion: imp.dataUrl,
+        recortado: false,
+        esPdf: true,
+        archivoPdf: file, // se sube el PDF original tal cual (renombrado)
+        blob: imp.blob,
+        width: imp.width,
+        height: imp.height,
+        ocrTexto: conTexto ? imp.texto : '',
+        ocrPalabras: [],
+        ocrEstado: conTexto ? 'listo' : 'procesando',
+        ocrProgreso: conTexto ? 1 : 0,
+        tipo: cliente.tipo,
+        rucProveedor: '',
+        nombreProveedor: '',
+        nroFactura: '',
+        timbrado: '',
+        subida: 'pendiente',
+      }
+
+      if (conTexto) {
+        const d = detectarDatos(imp.texto, cliente.ruc)
+        const tipoDetectado = detectarTipo(imp.texto)
+        nuevo.rucProveedor = d.rucProveedor
+        nuevo.nroFactura = d.nroFactura
+        nuevo.timbrado = d.timbrado
+        if (tipoDetectado) nuevo.tipo = tipoDetectado
+      }
+
+      setItems((prev) => [...prev, nuevo])
+
+      if (conTexto) {
+        if (nuevo.rucProveedor) buscarNombreProveedor(id, nuevo.rucProveedor)
+      } else {
+        // PDF escaneado sin texto: OCR sobre la imagen renderizada.
+        ejecutarOCR(id, imp.dataUrl)
+      }
+    } catch (e) {
+      console.error('No se pudo procesar el PDF', e)
+    }
+  }
+
   function reemplazarImagen(id: string, r: ResultadoEdicion) {
     actualizarItem(id, {
       dataUrl: r.img.dataUrl,
@@ -295,8 +359,12 @@ export default function App() {
         ]
           .filter(Boolean)
           .join(' · ')
-        // PDF buscable: imagen + capa de texto invisible del OCR + texto extra.
-        const pdf = await crearPdfBuscable(it.dataUrl, it.width, it.height, it.ocrPalabras, extra)
+        // Facturas electrónicas: se sube el PDF original tal cual (ya trae su
+        // capa de texto). El resto: imagen + capa de texto invisible del OCR.
+        const pdf =
+          it.esPdf && it.archivoPdf
+            ? it.archivoPdf
+            : await crearPdfBuscable(it.dataUrl, it.width, it.height, it.ocrPalabras, extra)
         const r = await subirComprobante(cliente, it, pdf, i + 1, total)
         if (r.ok) {
           actualizarItem(it.id, { subida: 'ok', urlDrive: r.url })

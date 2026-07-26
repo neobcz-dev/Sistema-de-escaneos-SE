@@ -43,6 +43,8 @@ export interface Comprobante {
   baseEdicion?: string // imagen sobre la que se marcaron las esquinas (con rotación aplicada)
   esquinas?: Punto[] // 4 esquinas elegidas/detectadas [tl, tr, br, bl], para recordarlas
   recortado?: boolean // true si ya se aplicó el recorte por perspectiva
+  esPdf?: boolean // true si el comprobante llegó como PDF (factura electrónica)
+  archivoPdf?: Blob // PDF original: se sube tal cual (renombrado), sin regenerarlo
   blob: Blob
   width: number
   height: number

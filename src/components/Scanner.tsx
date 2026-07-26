@@ -55,9 +55,10 @@ export function Scanner({
         <div>
           <h2 className="text-xl font-bold text-navy">Capture sus comprobantes</h2>
           <p className="mt-1 text-sm text-anthracite/70">
-            Use la <span className="font-semibold">cámara del celular</span> para la mejor calidad, o
-            elija fotos de la galería. Leemos el texto y detectamos el RUC del proveedor y el N° de
-            comprobante automáticamente.
+            Use la <span className="font-semibold">cámara del celular</span> para la mejor calidad,
+            elija fotos de la galería o suba un <span className="font-semibold">PDF</span> (factura
+            electrónica). Leemos el texto y detectamos el RUC del proveedor y el N° de comprobante
+            automáticamente.
           </p>
         </div>
 
@@ -76,8 +77,14 @@ export function Scanner({
             />
           </label>
           <label className="btn-ghost cursor-pointer">
-            <IconGaleria /> Elegir de la galería
-            <input type="file" accept="image/*" multiple className="hidden" onChange={alSeleccionar} />
+            <IconGaleria /> Galería o PDF
+            <input
+              type="file"
+              accept="image/*,application/pdf"
+              multiple
+              className="hidden"
+              onChange={alSeleccionar}
+            />
           </label>
         </div>
       </div>
