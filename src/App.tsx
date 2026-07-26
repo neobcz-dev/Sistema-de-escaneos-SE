@@ -6,7 +6,7 @@ import { Scanner } from './components/Scanner'
 import { ReviewSend } from './components/ReviewSend'
 import { InstallButton } from './components/InstallButton'
 import type { Cliente, Comprobante } from './types'
-import { procesarImagen, detectarEsquinas, recortarPerspectiva } from './lib/image'
+import { procesarImagen, detectarEsquinas, recortarPerspectiva, editarImagen } from './lib/image'
 import type { ResultadoEdicion } from './components/ImageEditor'
 import { reconocerTexto } from './lib/ocr'
 import { ocrEnServidor } from './lib/ocrServidor'
@@ -143,18 +143,20 @@ export default function App() {
         const original = await procesarImagen(file, { autoRecorte: false })
         const esquinas = autoDetectar ? await detectarEsquinas(original.dataUrl) : null
 
-        // Si detectamos el comprobante, lo RECORTAMOS y enderezamos solo. La
-        // miniatura muestra ya el resultado; queda corregible en el editor
-        // (que arranca desde la foto original con estas esquinas).
+        // Aplicamos el filtro "mágico" por defecto (blanquea y realza) y, si
+        // detectamos el comprobante, lo RECORTAMOS y enderezamos solo. La
+        // miniatura muestra ya el resultado; queda corregible en el editor.
         let vista = original
         let recortado = false
-        if (esquinas) {
-          try {
-            vista = await recortarPerspectiva(original.dataUrl, esquinas, 'color')
+        try {
+          if (esquinas) {
+            vista = await recortarPerspectiva(original.dataUrl, esquinas, 'magico')
             recortado = true
-          } catch {
-            vista = original // si algo falla, dejamos la foto con el recuadro marcado
+          } else {
+            vista = await editarImagen(original.dataUrl, { filtro: 'magico' })
           }
+        } catch {
+          vista = original // si algo falla, dejamos la foto original
         }
 
         const nuevo: Comprobante = {

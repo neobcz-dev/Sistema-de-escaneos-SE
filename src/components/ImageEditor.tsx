@@ -23,7 +23,7 @@ const FILTROS: { id: Filtro; nombre: string }[] = [
 function cssFiltro(filtro: Filtro, ajustes: AjustesFiltro): string | undefined {
   switch (filtro) {
     case 'magico':
-      return `brightness(${1 + ajustes.brillo / 200}) contrast(${1 + ajustes.contraste / 160}) saturate(1.15)`
+      return `brightness(${1.12 + ajustes.brillo / 200}) contrast(${1.35 + ajustes.contraste / 140}) saturate(1.2)`
     case 'gris':
       return 'grayscale(1)'
     case 'realce':
@@ -71,10 +71,12 @@ export function ImageEditor({
   useAtrasCierra(onCancelar)
   const [preview, setPreview] = useState(baseInicial ?? src)
   const [esquinas, setEsquinas] = useState<Punto[]>(esquinasIniciales ?? ESQUINAS_INICIAL)
-  const [filtro, setFiltro] = useState<Filtro>('color')
+  const [filtro, setFiltro] = useState<Filtro>('magico')
   const [ajustes, setAjustes] = useState<AjustesFiltro>(AJUSTES_MAGICO)
   const [ocupado, setOcupado] = useState(false)
   const [detectando, setDetectando] = useState(!esquinasIniciales)
+  // Lupa: posición del toque (cx,cy) y de la esquina en la imagen (nx,ny).
+  const [lupa, setLupa] = useState<{ cx: number; cy: number; nx: number; ny: number } | null>(null)
   const imgRef = useRef<HTMLImageElement>(null)
   const arrastreRef = useRef<number | null>(null)
 
@@ -131,9 +133,11 @@ export function ImageEditor({
       const x = clamp((e.clientX - r.left) / r.width, 0, 1)
       const y = clamp((e.clientY - r.top) / r.height, 0, 1)
       setEsquinas((prev) => prev.map((p, idx) => (idx === i ? { x, y } : p)))
+      setLupa({ cx: e.clientX, cy: e.clientY, nx: x, ny: y })
     }
     function soltar() {
       arrastreRef.current = null
+      setLupa(null)
     }
     window.addEventListener('pointermove', mover)
     window.addEventListener('pointerup', soltar)
@@ -197,6 +201,7 @@ export function ImageEditor({
                 e.preventDefault()
                 e.stopPropagation()
                 arrastreRef.current = idx
+                setLupa({ cx: e.clientX, cy: e.clientY, nx: p.x, ny: p.y })
               }}
               className="absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 touch-none items-center justify-center"
               style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
@@ -206,6 +211,41 @@ export function ImageEditor({
           ))}
         </div>
       </div>
+
+      {/* Lupa: muestra la zona ampliada de la esquina que se arrastra, ubicada
+          arriba del dedo (o debajo si está muy arriba) y siempre dentro de vista. */}
+      {lupa && imgRef.current && (() => {
+        const rect = imgRef.current.getBoundingClientRect()
+        const L = 132
+        const Z = 2.6
+        const bgW = rect.width * Z
+        const bgH = rect.height * Z
+        const px = lupa.nx * bgW
+        const py = lupa.ny * bgH
+        let top = lupa.cy - L - 34
+        if (top < 8) top = lupa.cy + 34
+        let left = lupa.cx - L / 2
+        left = Math.max(8, Math.min(window.innerWidth - L - 8, left))
+        return (
+          <div
+            className="pointer-events-none fixed z-[60] overflow-hidden rounded-full border-4 border-celeste bg-white shadow-2xl"
+            style={{ top, left, width: L, height: L }}
+          >
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage: `url(${preview})`,
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: `${bgW}px ${bgH}px`,
+                backgroundPosition: `${-(px - L / 2)}px ${-(py - L / 2)}px`,
+                filter: cssFiltro(filtro, ajustes),
+              }}
+            />
+            <div className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-celeste/70" />
+            <div className="absolute left-0 top-1/2 h-px w-full -translate-y-1/2 bg-celeste/70" />
+          </div>
+        )
+      })()}
 
       <div className="safe-bottom space-y-3 bg-black/80 p-4">
         <div className="flex items-center justify-center gap-2 overflow-x-auto">
@@ -231,27 +271,30 @@ export function ImageEditor({
           </button>
         </div>
 
-        {/* Ajustes del filtro mágico (brillo y contraste). */}
-        {filtro === 'magico' && (
-          <div className="space-y-2 rounded-xl bg-white/5 p-3">
-            <Deslizador
-              etiqueta="Brillo"
-              valor={ajustes.brillo}
-              onChange={(brillo) => setAjustes((a) => ({ ...a, brillo }))}
-            />
-            <Deslizador
-              etiqueta="Contraste"
-              valor={ajustes.contraste}
-              onChange={(contraste) => setAjustes((a) => ({ ...a, contraste }))}
-            />
-            <button
-              onClick={() => setAjustes(AJUSTES_MAGICO)}
-              className="text-xs font-semibold text-celeste"
-            >
-              Restablecer
-            </button>
-          </div>
-        )}
+        {/* Ajustes del filtro mágico (brillo y contraste). Reservamos el alto
+            SIEMPRE para que el cuadro de recorte no se mueva al cambiar filtro. */}
+        <div className="min-h-[136px]">
+          {filtro === 'magico' && (
+            <div className="space-y-2 rounded-xl bg-white/5 p-3">
+              <Deslizador
+                etiqueta="Brillo"
+                valor={ajustes.brillo}
+                onChange={(brillo) => setAjustes((a) => ({ ...a, brillo }))}
+              />
+              <Deslizador
+                etiqueta="Contraste"
+                valor={ajustes.contraste}
+                onChange={(contraste) => setAjustes((a) => ({ ...a, contraste }))}
+              />
+              <button
+                onClick={() => setAjustes(AJUSTES_MAGICO)}
+                className="text-xs font-semibold text-celeste"
+              >
+                Restablecer
+              </button>
+            </div>
+          )}
+        </div>
 
         <button onClick={aplicar} disabled={ocupado} className="btn-primary w-full">
           {ocupado ? 'Procesando…' : 'Aplicar'}

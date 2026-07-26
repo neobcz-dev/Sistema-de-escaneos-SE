@@ -107,7 +107,7 @@ export interface AjustesFiltro {
   contraste: number
 }
 
-export const AJUSTES_MAGICO: AjustesFiltro = { brillo: 12, contraste: 32 }
+export const AJUSTES_MAGICO: AjustesFiltro = { brillo: 10, contraste: 25 }
 
 export interface OpcionesEdicion {
   rotacion?: 0 | 90 | 180 | 270
@@ -184,9 +184,10 @@ export function aplicarFiltro(
 }
 
 /**
- * Filtro "mágico" (estilo ScanSnap): sube brillo y contraste manteniendo el
- * color, con un realce de saturación suave para que el comprobante quede vivo
- * y legible. `brillo` y `contraste` son ajustables (rango recomendado -80..80).
+ * Filtro "mágico" (estilo ScanSnap): BLANQUEA el fondo y oscurece el texto por
+ * auto-niveles (estira del punto negro al blanco según el histograma), sube
+ * brillo/contraste y realza la saturación, manteniendo el color. El efecto es
+ * marcado pero `brillo` y `contraste` lo ajustan (rango recomendado -80..80).
  */
 function filtroMagico(
   ctx: CanvasRenderingContext2D,
@@ -197,20 +198,49 @@ function filtroMagico(
 ): void {
   const imgData = ctx.getImageData(0, 0, w, h)
   const d = imgData.data
-  // Factor de contraste estándar (contraste en -255..255).
+  const n = w * h
+
+  // Auto-niveles: punto blanco (percentil 98, el papel) y punto negro (perc. 5).
+  const hist = new Uint32Array(256)
+  for (let i = 0; i < d.length; i += 4) {
+    const l = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) | 0
+    hist[l]++
+  }
+  let acc = 0
+  let blanco = 255
+  const objB = n * 0.98
+  for (let v = 0; v < 256; v++) {
+    acc += hist[v]
+    if (acc >= objB) { blanco = v; break }
+  }
+  acc = 0
+  let negro = 0
+  const objN = n * 0.05
+  for (let v = 0; v < 256; v++) {
+    acc += hist[v]
+    if (acc >= objN) { negro = v; break }
+  }
+  const blancoC = Math.max(150, Math.min(245, blanco)) // no sobre-brillar fotos oscuras
+  const negroC = Math.min(negro, 90)
+  const escala = 255 / Math.max(1, blancoC - negroC)
+
   const c = Math.max(-255, Math.min(255, contraste))
   const factor = (259 * (c + 255)) / (255 * (259 - c))
+  const sat = 1.2
   for (let i = 0; i < d.length; i += 4) {
     let r = d[i]
     let g = d[i + 1]
     let b = d[i + 2]
-    // Brillo + contraste alrededor de 128.
+    // 1) Auto-niveles (blanquea fondo, profundiza texto).
+    r = (r - negroC) * escala
+    g = (g - negroC) * escala
+    b = (b - negroC) * escala
+    // 2) Brillo + contraste alrededor de 128.
     r = factor * (r - 128) + 128 + brillo
     g = factor * (g - 128) + 128 + brillo
     b = factor * (b - 128) + 128 + brillo
-    // Realce de saturación suave (aleja del gris).
+    // 3) Realce de saturación.
     const prom = (r + g + b) / 3
-    const sat = 1.15
     r = prom + (r - prom) * sat
     g = prom + (g - prom) * sat
     b = prom + (b - prom) * sat
