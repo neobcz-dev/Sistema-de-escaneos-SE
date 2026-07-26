@@ -1,6 +1,5 @@
 /** Utilidades de imagen: carga, compresión, rotación, recorte (auto y manual)
  *  y filtro "documento" con umbral adaptativo. */
-import { extraerDocumento } from './scanner'
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -50,46 +49,47 @@ export async function procesarImagen(
   try {
     const img = await loadImage(src)
 
-    // 1) Escáner (OpenCV + jscanify): recorta y ENDEREZA el documento.
-    // Se carga bajo demanda (no en segundo plano). Las fotos se procesan de a
-    // una (ver App), así OpenCV se carga una sola vez y se reutiliza.
-    if (autoRecorte) {
-      try {
-        const doc = await Promise.race([
-          extraerDocumento(img),
-          new Promise<null>((r) => setTimeout(() => r(null), 20000)),
-        ])
-        if (doc) return await escalarCanvas(doc, maxDim, quality)
-      } catch {
-        // sin OpenCV o sin detección: seguimos con el detector simple
-      }
-    }
-
-    // 2) Respaldo: detector de hoja por componente conectado (sin enderezar).
-    // Trabajamos sobre un lienzo LIMITADO (no a resolución original) para no
-    // agotar la memoria con fotos de celular de 12+ megapíxeles.
+    // Lienzo de trabajo LIMITADO (no a resolución original) para no agotar la
+    // memoria con fotos de celular de 12+ megapíxeles. Todo el procesamiento es
+    // liviano en canvas (sin librerías pesadas): nunca congela ni crashea.
     const tope = Math.max(maxDim, 2400)
     const wEsc = Math.min(1, tope / Math.max(img.width, img.height))
     const bw = Math.max(1, Math.round(img.width * wEsc))
     const bh = Math.max(1, Math.round(img.height * wEsc))
-    const base = document.createElement('canvas')
-    base.width = bw
-    base.height = bh
-    const bctx = base.getContext('2d')
-    if (!bctx) throw new Error('El navegador no soporta procesamiento de imágenes.')
-    bctx.drawImage(img, 0, 0, bw, bh)
+    let fuente = document.createElement('canvas')
+    fuente.width = bw
+    fuente.height = bh
+    fuente.getContext('2d')!.drawImage(img, 0, 0, bw, bh)
 
     let sx = 0
     let sy = 0
-    let sw = bw
-    let sh = bh
+    let sw = fuente.width
+    let sh = fuente.height
+
     if (autoRecorte) {
-      const r = detectarHoja(bctx, bw, bh)
+      const r = detectarHoja(fuente.getContext('2d')!, fuente.width, fuente.height)
       if (r) {
-        sx = r.x
-        sy = r.y
-        sw = r.w
-        sh = r.h
+        if (Math.abs(r.angulo) > 0.035) {
+          // Inclinación notable (~2°): enderezamos y volvemos a recortar.
+          fuente = rotarCanvasLibre(fuente, -r.angulo)
+          const r2 = detectarHoja(fuente.getContext('2d')!, fuente.width, fuente.height)
+          if (r2) {
+            sx = r2.x
+            sy = r2.y
+            sw = r2.w
+            sh = r2.h
+          } else {
+            sx = 0
+            sy = 0
+            sw = fuente.width
+            sh = fuente.height
+          }
+        } else {
+          sx = r.x
+          sy = r.y
+          sw = r.w
+          sh = r.h
+        }
       }
     }
 
@@ -104,30 +104,11 @@ export async function procesarImagen(
     const octx = out.getContext('2d')!
     octx.fillStyle = '#ffffff'
     octx.fillRect(0, 0, outW, outH)
-    octx.drawImage(base, sx, sy, sw, sh, 0, 0, outW, outH)
+    octx.drawImage(fuente, sx, sy, sw, sh, 0, 0, outW, outH)
     return await canvasAImagen(out, quality)
   } finally {
     if (typeof file !== 'string') URL.revokeObjectURL(src)
   }
-}
-
-/** Escala un canvas a un lado máximo y lo comprime a JPEG. */
-async function escalarCanvas(
-  cnv: HTMLCanvasElement,
-  maxDim: number,
-  quality: number,
-): Promise<ImagenProcesada> {
-  const largest = Math.max(cnv.width, cnv.height)
-  const scale = largest > maxDim ? maxDim / largest : 1
-  const outW = Math.max(1, Math.round(cnv.width * scale))
-  const outH = Math.max(1, Math.round(cnv.height * scale))
-  if (scale === 1) return canvasAImagen(cnv, quality)
-  const out = document.createElement('canvas')
-  out.width = outW
-  out.height = outH
-  const ctx = out.getContext('2d')!
-  ctx.drawImage(cnv, 0, 0, outW, outH)
-  return canvasAImagen(out, quality)
 }
 
 export type Filtro = 'color' | 'gris' | 'realce' | 'bn'
@@ -276,7 +257,7 @@ function detectarHoja(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
-): { x: number; y: number; w: number; h: number } | null {
+): { x: number; y: number; w: number; h: number; angulo: number } | null {
   const escala = Math.min(1, 600 / Math.max(w, h))
   const aw = Math.max(1, Math.round(w * escala))
   const ah = Math.max(1, Math.round(h * escala))
@@ -328,6 +309,7 @@ function detectarHoja(
   const pila = new Int32Array(n)
   let etiqueta = 0
   let mejorArea = 0
+  let mejorEtiqueta = 0
   let bb: { minx: number; miny: number; maxx: number; maxy: number; area: number } | null = null
   for (let s = 0; s < n; s++) {
     if (!mask[s] || lbl[s]) continue
@@ -356,6 +338,7 @@ function detectarHoja(
     }
     if (area > mejorArea) {
       mejorArea = area
+      mejorEtiqueta = etiqueta
       bb = { minx, miny, maxx, maxy, area }
     }
   }
@@ -367,6 +350,39 @@ function detectarHoja(
   const fill = bb.area / (rw * rh)
   // Debe ser una región sensata y bien "rellena" (una hoja, no un scatter).
   if (areaRel < 0.15 || areaRel > 0.95 || fill < 0.45) return null
+
+  // Ángulo de inclinación por momentos del componente principal (para enderezar).
+  let n1 = 0
+  let sx = 0
+  let sy = 0
+  for (let p = 0; p < n; p++) {
+    if (lbl[p] === mejorEtiqueta) {
+      n1++
+      sx += p % aw
+      sy += (p / aw) | 0
+    }
+  }
+  let angulo = 0
+  if (n1 > 0) {
+    const cx = sx / n1
+    const cy = sy / n1
+    let mxx = 0
+    let myy = 0
+    let mxy = 0
+    for (let p = 0; p < n; p++) {
+      if (lbl[p] === mejorEtiqueta) {
+        const dx = (p % aw) - cx
+        const dy = ((p / aw) | 0) - cy
+        mxx += dx * dx
+        myy += dy * dy
+        mxy += dx * dy
+      }
+    }
+    angulo = 0.5 * Math.atan2(2 * (mxy / n1), mxx / n1 - myy / n1)
+    // Normalizar a [-45°, 45°] (corregir la inclinación, no girar la hoja 90°).
+    const q = Math.PI / 2
+    angulo = angulo - q * Math.round(angulo / q)
+  }
 
   // Margen (2% + compensación de la erosión) y mapeo a resolución original.
   const mx = Math.round(rw * 0.02) + 2
@@ -381,7 +397,26 @@ function detectarHoja(
     y: Math.round(y0 * inv),
     w: Math.round((x1 - x0 + 1) * inv),
     h: Math.round((y1 - y0 + 1) * inv),
+    angulo,
   }
+}
+
+/** Rota un canvas por `ang` radianes expandiendo el lienzo, con fondo blanco. */
+function rotarCanvasLibre(cnv: HTMLCanvasElement, ang: number): HTMLCanvasElement {
+  const cos = Math.abs(Math.cos(ang))
+  const sin = Math.abs(Math.sin(ang))
+  const nw = Math.ceil(cnv.width * cos + cnv.height * sin)
+  const nh = Math.ceil(cnv.width * sin + cnv.height * cos)
+  const out = document.createElement('canvas')
+  out.width = nw
+  out.height = nh
+  const ctx = out.getContext('2d')!
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, nw, nh)
+  ctx.translate(nw / 2, nh / 2)
+  ctx.rotate(ang)
+  ctx.drawImage(cnv, -cnv.width / 2, -cnv.height / 2)
+  return out
 }
 
 /** Erosión morfológica 3×3 (mantiene el píxel solo si todos sus vecinos son 1). */
