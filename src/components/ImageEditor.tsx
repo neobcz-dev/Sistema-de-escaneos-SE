@@ -286,13 +286,15 @@ export function ImageEditor({
       })()}
 
       <div className="safe-bottom space-y-3 bg-black/80 p-4">
-        <div className="flex items-center justify-center gap-2 overflow-x-auto">
+        {/* Se acomodan en varias líneas (wrap) para que se vean y se puedan
+            tocar TODOS, sin depender del deslizamiento horizontal. */}
+        <div className="flex flex-wrap items-center justify-center gap-2">
           {FILTROS.map((f) => (
             <button
               key={f.id}
               onClick={() => setFiltro(f.id)}
               className={[
-                'shrink-0 rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
+                'rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
                 filtro === f.id ? 'bg-celeste text-navy-dark' : 'bg-white/10 text-white',
               ].join(' ')}
             >
@@ -302,7 +304,7 @@ export function ImageEditor({
           <button
             onClick={rotar}
             disabled={ocupado}
-            className="shrink-0 rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
+            className="rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
             title="Rotar 90°"
           >
             ↻
