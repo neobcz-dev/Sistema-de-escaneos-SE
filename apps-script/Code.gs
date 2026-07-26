@@ -177,12 +177,19 @@ function ocrImagen(base64, mimeType) {
       mimeType || 'image/jpeg',
       'ocr-temp.jpg'
     );
-    // Insertar convirtiendo a Documento de Google, con OCR en español.
-    var file = Drive.Files.insert(
-      { title: 'ocr-temp', mimeType: 'application/vnd.google-apps.document' },
-      blob,
-      { ocr: true, ocrLanguage: 'es' }
-    );
+    var meta = {
+      title: 'ocr-temp',                 // Drive API v2
+      name: 'ocr-temp',                  // Drive API v3
+      mimeType: 'application/vnd.google-apps.document'
+    };
+    var file;
+    if (Drive.Files.insert) {
+      // Servicio avanzado Drive v2
+      file = Drive.Files.insert(meta, blob, { ocr: true, ocrLanguage: 'es' });
+    } else {
+      // Servicio avanzado Drive v3
+      file = Drive.Files.create(meta, blob, { ocrLanguage: 'es' });
+    }
     tempId = file.id;
     var texto = DocumentApp.openById(tempId).getBody().getText();
     return { ok: true, texto: texto || '' };
@@ -190,7 +197,10 @@ function ocrImagen(base64, mimeType) {
     return { ok: false, error: 'OCR no disponible: ' + String(err) };
   } finally {
     if (tempId) {
-      try { Drive.Files.remove(tempId); } catch (e2) {}
+      try {
+        if (Drive.Files.remove) Drive.Files.remove(tempId);
+        else Drive.Files.delete(tempId);
+      } catch (e2) {}
     }
   }
 }
