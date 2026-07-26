@@ -271,29 +271,31 @@ export function ImageEditor({
           </button>
         </div>
 
-        {/* Ajustes del filtro mágico (brillo y contraste). Reservamos el alto
-            SIEMPRE para que el cuadro de recorte no se mueva al cambiar filtro. */}
-        <div className="min-h-[136px]">
-          {filtro === 'magico' && (
-            <div className="space-y-2 rounded-xl bg-white/5 p-3">
-              <Deslizador
-                etiqueta="Brillo"
-                valor={ajustes.brillo}
-                onChange={(brillo) => setAjustes((a) => ({ ...a, brillo }))}
-              />
-              <Deslizador
-                etiqueta="Contraste"
-                valor={ajustes.contraste}
-                onChange={(contraste) => setAjustes((a) => ({ ...a, contraste }))}
-              />
-              <button
-                onClick={() => setAjustes(AJUSTES_MAGICO)}
-                className="text-xs font-semibold text-celeste"
-              >
-                Restablecer
-              </button>
-            </div>
-          )}
+        {/* Ajustes del filtro mágico (brillo y contraste). SIEMPRE en el layout
+            (solo ocultos cuando no es mágico) para que el cuadro de recorte NO
+            se mueva al cambiar de filtro. */}
+        <div
+          className={[
+            'space-y-2 rounded-xl bg-white/5 p-3',
+            filtro === 'magico' ? '' : 'invisible',
+          ].join(' ')}
+        >
+          <Deslizador
+            etiqueta="Brillo"
+            valor={ajustes.brillo}
+            onChange={(brillo) => setAjustes((a) => ({ ...a, brillo }))}
+          />
+          <Deslizador
+            etiqueta="Contraste"
+            valor={ajustes.contraste}
+            onChange={(contraste) => setAjustes((a) => ({ ...a, contraste }))}
+          />
+          <button
+            onClick={() => setAjustes(AJUSTES_MAGICO)}
+            className="text-xs font-semibold text-celeste"
+          >
+            Restablecer
+          </button>
         </div>
 
         <button onClick={aplicar} disabled={ocupado} className="btn-primary w-full">
