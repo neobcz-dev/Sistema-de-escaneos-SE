@@ -6,7 +6,7 @@ import { Scanner } from './components/Scanner'
 import { ReviewSend } from './components/ReviewSend'
 import { InstallButton } from './components/InstallButton'
 import type { Cliente, Comprobante } from './types'
-import { procesarImagen, detectarEsquinas } from './lib/image'
+import { procesarImagen, detectarEsquinas, recortarPerspectiva } from './lib/image'
 import type { ResultadoEdicion } from './components/ImageEditor'
 import { reconocerTexto } from './lib/ocr'
 import { ocrEnServidor } from './lib/ocrServidor'
@@ -139,21 +139,35 @@ export default function App() {
     for (const file of lista) {
       const id = nuevoId()
       try {
-        // Trabajamos sobre la foto completa (sin recortar). Detectamos las 4
-        // esquinas del comprobante para MOSTRARLAS sobre la miniatura; el recorte
-        // por perspectiva se aplica cuando el usuario confirma en el editor.
+        // Foto completa (base para reeditar) + detección de las 4 esquinas.
         const original = await procesarImagen(file, { autoRecorte: false })
         const esquinas = autoDetectar ? await detectarEsquinas(original.dataUrl) : null
+
+        // Si detectamos el comprobante, lo RECORTAMOS y enderezamos solo. La
+        // miniatura muestra ya el resultado; queda corregible en el editor
+        // (que arranca desde la foto original con estas esquinas).
+        let vista = original
+        let recortado = false
+        if (esquinas) {
+          try {
+            vista = await recortarPerspectiva(original.dataUrl, esquinas, 'color')
+            recortado = true
+          } catch {
+            vista = original // si algo falla, dejamos la foto con el recuadro marcado
+          }
+        }
+
         const nuevo: Comprobante = {
           id,
           nombreArchivo: construirNombre(cliente, id),
-          dataUrl: original.dataUrl,
+          dataUrl: vista.dataUrl,
           originalDataUrl: original.dataUrl,
+          baseEdicion: original.dataUrl,
           esquinas: esquinas ?? undefined,
-          recortado: false,
-          blob: original.blob,
-          width: original.width,
-          height: original.height,
+          recortado,
+          blob: vista.blob,
+          width: vista.width,
+          height: vista.height,
           ocrTexto: '',
           ocrPalabras: [],
           ocrEstado: 'procesando',
@@ -166,7 +180,7 @@ export default function App() {
           subida: 'pendiente',
         }
         setItems((prev) => [...prev, nuevo])
-        ejecutarOCR(id, original.dataUrl)
+        ejecutarOCR(id, vista.dataUrl) // OCR sobre el recorte (menos fondo)
       } catch (e) {
         console.error('No se pudo procesar la imagen', e)
       }

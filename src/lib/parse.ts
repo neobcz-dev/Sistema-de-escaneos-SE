@@ -92,27 +92,36 @@ export function detectarDatos(texto: string, rucCliente: string): DatosDetectado
   // RUC del proveedor: primer RUC del texto que NO sea el del cliente ni el de
   // la imprenta (pie de página: "Imp. ... RUC" / "Hab. SET N°").
   const clienteDigitos = soloDigitos(rucCliente)
-  const candidatos: { ruc: string; indice: number; d: string }[] = []
+  type Cand = { ruc: string; indice: number; d: string; etiquetado: boolean }
+  const candidatos: Cand[] = []
   let m: RegExpExecArray | null
   RE_RUC.lastIndex = 0
   while ((m = RE_RUC.exec(t)) !== null) {
-    candidatos.push({ ruc: `${m[1]}-${m[2]}`, indice: m.index, d: m[1] + m[2] })
+    candidatos.push({ ruc: `${m[1]}-${m[2]}`, indice: m.index, d: m[1] + m[2], etiquetado: false })
   }
   RE_RUC_ETQ.lastIndex = 0
   while ((m = RE_RUC_ETQ.exec(t)) !== null) {
-    candidatos.push({ ruc: `${m[1]}-${m[2]}`, indice: m.index, d: m[1] + m[2] })
+    candidatos.push({ ruc: `${m[1]}-${m[2]}`, indice: m.index, d: m[1] + m[2], etiquetado: true })
   }
-  // Un mismo RUC puede venir por ambos patrones: nos quedamos con su 1ª aparición.
-  const porDigitos = new Map<string, { ruc: string; indice: number; d: string }>()
+  // Un mismo RUC puede venir por ambos patrones: 1ª aparición + si alguno traía
+  // la etiqueta "RUC".
+  const porDigitos = new Map<string, Cand>()
   for (const c of candidatos) {
     const prev = porDigitos.get(c.d)
-    if (!prev || c.indice < prev.indice) porDigitos.set(c.d, c)
+    if (!prev) porDigitos.set(c.d, { ...c })
+    else {
+      prev.indice = Math.min(prev.indice, c.indice)
+      prev.etiquetado = prev.etiquetado || c.etiquetado
+    }
   }
   const RE_IMPRENTA = /imp[.\s]|impreso|imprenta|hab[.\s]|habilit/
   const filtrados = [...porDigitos.values()]
     .filter((c) => !(clienteDigitos && c.d === clienteDigitos))
     .filter((c) => !RE_IMPRENTA.test(t.slice(Math.max(0, c.indice - 35), c.indice).toLowerCase()))
-    .sort((a, b) => a.indice - b.indice)
+    // Preferimos los RUC ETIQUETADOS ("RUC: …", casi siempre el real) sobre
+    // números sueltos con guion (que pueden ser precios/fechas); dentro de cada
+    // grupo, el que aparece primero.
+    .sort((a, b) => Number(b.etiquetado) - Number(a.etiquetado) || a.indice - b.indice)
   const rucProveedor = filtrados.length ? filtrados[0].ruc : ''
 
   return { rucProveedor, nroFactura, timbrado }
