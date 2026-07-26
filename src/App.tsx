@@ -10,7 +10,7 @@ import { reconocerTexto } from './lib/ocr'
 import { crearPdfBuscable } from './lib/pdf'
 import { detectarDatos } from './lib/parse'
 import { subirComprobante } from './lib/upload'
-import { nuevoId, periodoActual, selloTiempo, slug } from './lib/util'
+import { codigoTipo, nuevoId, periodoActual, selloTiempo, slug } from './lib/util'
 import { EMPRESA } from './config'
 
 const CLIENTE_INICIAL: Cliente = {
@@ -156,6 +156,7 @@ export default function App() {
         {paso === 1 && (
           <Scanner
             items={items}
+            numerado={codigoTipo(cliente.tipo).numerado}
             onAgregarArchivos={agregarArchivos}
             onEliminar={eliminarItem}
             onEditarOCR={editarOCR}

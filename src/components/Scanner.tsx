@@ -6,6 +6,7 @@ import { ImageEditor } from './ImageEditor'
 
 interface Props {
   items: Comprobante[]
+  numerado: boolean
   onAgregarArchivos: (files: FileList | File[]) => void
   onEliminar: (id: string) => void
   onEditarOCR: (id: string, texto: string) => void
@@ -17,6 +18,7 @@ interface Props {
 
 export function Scanner({
   items,
+  numerado,
   onAgregarArchivos,
   onEliminar,
   onEditarOCR,
@@ -105,7 +107,13 @@ export function Scanner({
                       <label className="field-label text-xs">N° comprobante</label>
                       <input
                         className="field-input py-2 text-sm"
-                        placeholder={c.ocrEstado === 'procesando' ? '…' : 'No detectado'}
+                        placeholder={
+                          c.ocrEstado === 'procesando'
+                            ? '…'
+                            : numerado
+                              ? '001-001-0000001'
+                              : 'N° libre (ej. 0001)'
+                        }
                         value={c.nroFactura}
                         onChange={(e) => onEditarCampo(c.id, 'nroFactura', e.target.value)}
                       />

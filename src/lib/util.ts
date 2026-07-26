@@ -64,19 +64,27 @@ export function codigoTipo(tipo: TipoComprobante): { codigo: string; numerado: b
     case 'Nota de débito':
       return { codigo: 'NDB', numerado: true }
     case 'Boleta / Ticket':
-      return { codigo: 'BOL', numerado: false }
+      return { codigo: 'BOL', numerado: true }
     case 'Autofactura':
-      return { codigo: 'AUT', numerado: false }
+      return { codigo: 'AUT', numerado: true }
     case 'Recibo':
       return { codigo: 'REC', numerado: false }
     case 'Comprobante de retención':
       return { codigo: 'RET', numerado: false }
     default:
-      return { codigo: 'OTR', numerado: false }
+      return { codigo: 'OTROS', numerado: false }
   }
 }
 
-/** Deja solo dígitos y guiones (para RUC y N° de comprobante en el nombre). */
+/** Deja solo dígitos y guiones (para el RUC en el nombre del archivo). */
 export function limpiarNumero(s: string): string {
   return (s || '').replace(/[^0-9-]/g, '')
+}
+
+/**
+ * Referencia/N° de comprobante para el nombre de archivo. Admite numeración
+ * libre (alfanumérica) para recibos y otros comprobantes: 0001, X54F8, etc.
+ */
+export function limpiarRef(s: string): string {
+  return (s || '').trim().replace(/\s+/g, '-').replace(/[^0-9A-Za-z-]/g, '')
 }

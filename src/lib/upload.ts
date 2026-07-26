@@ -2,7 +2,7 @@
 import { APPS_SCRIPT_URL } from '../config'
 import type { Cliente, Comprobante } from '../types'
 import { blobToBase64 } from './image'
-import { codigoTipo, limpiarNumero } from './util'
+import { codigoTipo, limpiarNumero, limpiarRef } from './util'
 
 export interface RespuestaSubida {
   ok: boolean
@@ -12,16 +12,17 @@ export interface RespuestaSubida {
 }
 
 /**
- * Nombre del archivo: "RUC_TDOC NNN-NNN-NNNNNNN".
- * La numeración solo se agrega para Factura (FAT), Nota de crédito (NCR) y
- * Nota de débito (NDB). Para otros tipos se omite la numeración.
+ * Nombre del archivo: "RUC_TDOC NUMERO".
+ * - Factura (FAT), Nota de crédito (NCR), Nota de débito (NDB), Autofactura
+ *   (AUT) y Boleta (BOL) usan el formato NNN-NNN-NNNNNNN (autodetectado).
+ * - Recibo (REC), retención (RET) y Otros (OTROS) admiten numeración libre.
+ * Si no hay número, se omite y queda solo "RUC_TDOC".
  */
 function construirNombre(cliente: Cliente, comp: Comprobante): string {
-  const { codigo, numerado } = codigoTipo(cliente.tipo)
+  const { codigo } = codigoTipo(cliente.tipo)
   const ruc = limpiarNumero(comp.rucProveedor) || 'SIN-RUC'
-  const nro = limpiarNumero(comp.nroFactura)
-  if (numerado && nro) return `${ruc}_${codigo} ${nro}.pdf`
-  return `${ruc}_${codigo}.pdf`
+  const nro = limpiarRef(comp.nroFactura)
+  return nro ? `${ruc}_${codigo} ${nro}.pdf` : `${ruc}_${codigo}.pdf`
 }
 
 /**
