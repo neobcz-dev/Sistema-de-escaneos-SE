@@ -1,6 +1,9 @@
 /** Utilidades de imagen: carga, compresión, rotación, recorte (auto y manual)
  *  y filtro "documento" con umbral adaptativo. */
 
+import type { Punto } from '../types'
+export type { Punto }
+
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()
@@ -150,46 +153,48 @@ export async function editarImagen(
   octx.fillRect(0, 0, outW, outH)
   octx.drawImage(rot, cx, cy, cw, ch, 0, 0, outW, outH)
 
-  if (filtro === 'bn') filtroDocumento(octx, outW, outH)
-  else if (filtro === 'gris') filtroGris(octx, outW, outH, false)
-  else if (filtro === 'realce') filtroGris(octx, outW, outH, true)
+  aplicarFiltro(octx, outW, outH, filtro)
 
   return canvasAImagen(out, quality)
 }
 
-/** Escala de grises; si `realce`, estira el contraste (auto-niveles). */
-function filtroGris(
+/** Aplica el filtro elegido al contexto ya dibujado. */
+export function aplicarFiltro(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
-  realce: boolean,
+  filtro: Filtro,
 ): void {
+  if (filtro === 'gris') filtroGris(ctx, w, h)
+  else if (filtro === 'realce') filtroEscaneo(ctx, w, h, false)
+  else if (filtro === 'bn') filtroEscaneo(ctx, w, h, true)
+}
+
+/** Escala de grises simple. */
+function filtroGris(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   const imgData = ctx.getImageData(0, 0, w, h)
   const d = imgData.data
-  let min = 255
-  let max = 0
-  const gris = new Float32Array(w * h)
-  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-    const g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]
-    gris[p] = g
-    if (g < min) min = g
-    if (g > max) max = g
-  }
-  const rango = realce && max > min ? 255 / (max - min) : 1
-  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-    let g = gris[p]
-    if (realce) g = (g - min) * rango
-    g = g < 0 ? 0 : g > 255 ? 255 : g
+  for (let i = 0; i < d.length; i += 4) {
+    const g = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) | 0
     d[i] = d[i + 1] = d[i + 2] = g
   }
   ctx.putImageData(imgData, 0, 0)
 }
 
 /**
- * Filtro "escaneo": escala de grises + umbral adaptativo (Bradley). Da texto
- * negro nítido sobre blanco, robusto a iluminación despareja y SIN sobreexponer.
+ * Filtro "escáner": aplana la iluminación dividiendo cada píxel por el FONDO
+ * local (media en una ventana grande). Esto borra sombras y viñeteo y deja el
+ * papel blanco parejo con el texto oscuro, tal como un escáner real.
+ *  - realce (binarizar=false): grises normalizados con contraste (legible, ideal
+ *    también para el OCR porque conserva los bordes suaves de las letras).
+ *  - B/N (binarizar=true): además umbraliza a blanco y negro puro.
  */
-function filtroDocumento(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+function filtroEscaneo(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  binarizar: boolean,
+): void {
   const imgData = ctx.getImageData(0, 0, w, h)
   const d = imgData.data
   const n = w * h
@@ -198,18 +203,19 @@ function filtroDocumento(ctx: CanvasRenderingContext2D, w: number, h: number): v
     gray[p] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]
   }
 
-  // Imagen integral para media local rápida.
-  const integral = new Float64Array((w + 1) * (h + 1))
+  // Imagen integral para media local (fondo) rápida.
+  const iw = w + 1
+  const integral = new Float64Array(iw * (h + 1))
   for (let y = 0; y < h; y++) {
     let fila = 0
     for (let x = 0; x < w; x++) {
       fila += gray[y * w + x]
-      integral[(y + 1) * (w + 1) + (x + 1)] = integral[y * (w + 1) + (x + 1)] + fila
+      integral[(y + 1) * iw + (x + 1)] = integral[y * iw + (x + 1)] + fila
     }
   }
 
-  const radio = Math.max(12, Math.floor(Math.min(w, h) / 22))
-  const t = 0.15 // umbral: 15% por debajo de la media local -> negro
+  // Ventana grande = estimación del fondo (no del texto).
+  const radio = Math.max(16, Math.floor(Math.min(w, h) / 8))
   for (let y = 0; y < h; y++) {
     const y0 = Math.max(0, y - radio)
     const y1 = Math.min(h - 1, y + radio)
@@ -218,31 +224,54 @@ function filtroDocumento(ctx: CanvasRenderingContext2D, w: number, h: number): v
       const x1 = Math.min(w - 1, x + radio)
       const area = (x1 - x0 + 1) * (y1 - y0 + 1)
       const suma =
-        integral[(y1 + 1) * (w + 1) + (x1 + 1)] -
-        integral[y0 * (w + 1) + (x1 + 1)] -
-        integral[(y1 + 1) * (w + 1) + x0] +
-        integral[y0 * (w + 1) + x0]
-      const media = suma / area
-      const v = gray[y * w + x] < media * (1 - t) ? 0 : 255
+        integral[(y1 + 1) * iw + (x1 + 1)] -
+        integral[y0 * iw + (x1 + 1)] -
+        integral[(y1 + 1) * iw + x0] +
+        integral[y0 * iw + x0]
+      const fondo = suma / area
+      const g = gray[y * w + x]
       const idx = (y * w + x) * 4
+      let v: number
+      if (binarizar) {
+        v = g < fondo * 0.82 ? 0 : 255
+      } else {
+        // ratio 1 = fondo (blanco); mapeamos [0.55..1] -> [0..255] para dar
+        // blancos limpios y texto oscuro sin quemar los medios tonos.
+        let r = fondo > 1 ? g / fondo : 1
+        r = (r - 0.55) / 0.45
+        v = r <= 0 ? 0 : r >= 1 ? 255 : Math.round(r * 255)
+      }
       d[idx] = d[idx + 1] = d[idx + 2] = v
     }
   }
   ctx.putImageData(imgData, 0, 0)
 }
 
+interface ComponenteHoja {
+  lbl: Int32Array
+  etiqueta: number
+  aw: number
+  ah: number
+  escala: number
+  minx: number
+  miny: number
+  maxx: number
+  maxy: number
+  area: number
+  n: number
+}
+
 /**
- * Detecta la hoja del comprobante: toma el COMPONENTE CLARO CONECTADO MÁS
- * GRANDE (la hoja es un bloque claro y contiguo; el fondo —teclado, mesa—
- * aporta manchas claras pequeñas y dispersas que se descartan).
- * Devuelve el recuadro en píxeles de la imagen original, o null si no
- * distingue una hoja razonable (entonces no se recorta).
+ * Aísla la hoja del comprobante como el COMPONENTE CLARO CONECTADO MÁS GRANDE
+ * (la hoja es un bloque claro contiguo; el fondo —mesa, teclado— aporta manchas
+ * claras chicas y dispersas que se descartan). Trabaja en baja resolución.
+ * Devuelve el mapa de etiquetas y la etiqueta del mayor, o null.
  */
-function detectarHoja(
+function componenteHoja(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
-): { x: number; y: number; w: number; h: number } | null {
+): ComponenteHoja | null {
   const escala = Math.min(1, 600 / Math.max(w, h))
   const aw = Math.max(1, Math.round(w * escala))
   const ah = Math.max(1, Math.round(h * escala))
@@ -294,7 +323,7 @@ function detectarHoja(
   const pila = new Int32Array(n)
   let etiqueta = 0
   let mejorArea = 0
-  let bb: { minx: number; miny: number; maxx: number; maxy: number; area: number } | null = null
+  let mejor: ComponenteHoja | null = null
   for (let s = 0; s < n; s++) {
     if (!mask[s] || lbl[s]) continue
     etiqueta++
@@ -322,31 +351,104 @@ function detectarHoja(
     }
     if (area > mejorArea) {
       mejorArea = area
-      bb = { minx, miny, maxx, maxy, area }
+      mejor = { lbl, etiqueta, aw, ah, escala, minx, miny, maxx, maxy, area, n }
     }
   }
-  if (!bb) return null
+  return mejor
+}
 
-  const rw = bb.maxx - bb.minx + 1
-  const rh = bb.maxy - bb.miny + 1
-  const areaRel = (rw * rh) / n
-  const fill = bb.area / (rw * rh)
-  // Debe ser una región sensata y bien "rellena" (una hoja, no un scatter).
+/**
+ * Recuadro (píxeles de la imagen original) de la hoja detectada, o null si no
+ * se distingue una hoja razonable (entonces no se recorta automáticamente).
+ */
+function detectarHoja(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+): { x: number; y: number; w: number; h: number } | null {
+  const c = componenteHoja(ctx, w, h)
+  if (!c) return null
+  const rw = c.maxx - c.minx + 1
+  const rh = c.maxy - c.miny + 1
+  const areaRel = (rw * rh) / c.n
+  const fill = c.area / (rw * rh)
   if (areaRel < 0.15 || areaRel > 0.95 || fill < 0.45) return null
 
-  // Margen (2% + compensación de la erosión) y mapeo a resolución original.
   const mx = Math.round(rw * 0.02) + 2
   const my = Math.round(rh * 0.02) + 2
-  const x0 = Math.max(0, bb.minx - mx)
-  const y0 = Math.max(0, bb.miny - my)
-  const x1 = Math.min(aw - 1, bb.maxx + mx)
-  const y1 = Math.min(ah - 1, bb.maxy + my)
-  const inv = 1 / escala
+  const x0 = Math.max(0, c.minx - mx)
+  const y0 = Math.max(0, c.miny - my)
+  const x1 = Math.min(c.aw - 1, c.maxx + mx)
+  const y1 = Math.min(c.ah - 1, c.maxy + my)
+  const inv = 1 / c.escala
   return {
     x: Math.round(x0 * inv),
     y: Math.round(y0 * inv),
     w: Math.round((x1 - x0 + 1) * inv),
     h: Math.round((y1 - y0 + 1) * inv),
+  }
+}
+
+/**
+ * Detecta automáticamente las 4 ESQUINAS del comprobante (cuadrilátero, aunque
+ * esté rotado o en perspectiva). De la hoja detectada toma los puntos extremos:
+ * sup-izq = mín(x+y), inf-der = máx(x+y), sup-der = máx(x−y), inf-izq = mín(x−y).
+ * Devuelve 4 puntos NORMALIZADOS (0–1) en orden [tl, tr, br, bl], o null si no
+ * logra distinguir la hoja con confianza (el editor usa entonces un recuadro por
+ * defecto). Es liviano (una pasada por la máscara): nunca congela.
+ */
+export async function detectarEsquinas(src: string): Promise<Punto[] | null> {
+  try {
+    const img = await loadImage(src)
+    const tope = 1000
+    const esc = Math.min(1, tope / Math.max(img.width, img.height))
+    const cw = Math.max(1, Math.round(img.width * esc))
+    const ch = Math.max(1, Math.round(img.height * esc))
+    const cv = document.createElement('canvas')
+    cv.width = cw
+    cv.height = ch
+    const ctx = cv.getContext('2d')!
+    ctx.drawImage(img, 0, 0, cw, ch)
+
+    const c = componenteHoja(ctx, cw, ch)
+    if (!c) return null
+    const rw = c.maxx - c.minx + 1
+    const rh = c.maxy - c.miny + 1
+    const areaRel = (rw * rh) / c.n
+    const fill = c.area / (rw * rh)
+    if (areaRel < 0.15 || areaRel > 0.98 || fill < 0.4) return null
+
+    const { lbl, etiqueta, aw, ah } = c
+    let sTL = Infinity
+    let sBR = -Infinity
+    let sTR = -Infinity
+    let sBL = Infinity
+    let tl = { x: 0, y: 0 }
+    let br = { x: 0, y: 0 }
+    let tr = { x: 0, y: 0 }
+    let bl = { x: 0, y: 0 }
+    for (let i = 0; i < lbl.length; i++) {
+      if (lbl[i] !== etiqueta) continue
+      const x = i % aw
+      const y = (i / aw) | 0
+      const s = x + y
+      const dif = x - y
+      if (s < sTL) { sTL = s; tl = { x, y } }
+      if (s > sBR) { sBR = s; br = { x, y } }
+      if (dif > sTR) { sTR = dif; tr = { x, y } }
+      if (dif < sBL) { sBL = dif; bl = { x, y } }
+    }
+
+    // Pequeño margen hacia afuera (la erosión encogió la máscara ~2 px).
+    const cx = (tl.x + tr.x + br.x + bl.x) / 4
+    const cy = (tl.y + tr.y + br.y + bl.y) / 4
+    const norm = (p: { x: number; y: number }): Punto => ({
+      x: clampNum((p.x + (p.x - cx) * 0.03) / aw, 0, 1),
+      y: clampNum((p.y + (p.y - cy) * 0.03) / ah, 0, 1),
+    })
+    return [norm(tl), norm(tr), norm(br), norm(bl)]
+  } catch {
+    return null
   }
 }
 
@@ -366,11 +468,6 @@ function erosionar(m: Uint8Array, w: number, h: number): Uint8Array {
     }
   }
   return o
-}
-
-export interface Punto {
-  x: number
-  y: number
 }
 
 /**
@@ -428,9 +525,7 @@ export async function recortarPerspectiva(
   const octx = out.getContext('2d')!
   warpPerspectiva(fuente, [tl, tr, br, bl], octx, outW, outH)
 
-  if (filtro === 'bn') filtroDocumento(octx, outW, outH)
-  else if (filtro === 'gris') filtroGris(octx, outW, outH, false)
-  else if (filtro === 'realce') filtroGris(octx, outW, outH, true)
+  aplicarFiltro(octx, outW, outH, filtro)
 
   return canvasAImagen(out, quality)
 }

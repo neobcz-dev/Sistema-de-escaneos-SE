@@ -59,6 +59,9 @@ const RE_NRO_ESTRICTO = /\b(\d{3})-(\d{3})-(\d{6,7})\b/
 const RE_NRO_FLEX = /(\d{2,3})[-.\s]{1,2}(\d{3})[-.\s]{1,3}((?:\d[ .]?){6,9})/
 // RUC con dígito verificador, admitiendo espacios: "1636907 - 6".
 const RE_RUC = /(\d{5,8})\s*[-–]\s*(\d)(?!\d)/g
+// RUC precedido de su etiqueta "RUC" aunque venga SIN guion: "RUC: 801236444".
+// El último dígito es el verificador. Cubre facturas donde el OCR pierde el guion.
+const RE_RUC_ETQ = /r\.?u\.?c\.?[^\d]{0,10}(\d{6,8})\s*[-–]?\s*(\d)(?!\d)/gi
 // Timbrado: la palabra seguida (con ruido de por medio) de 7-9 dígitos.
 const RE_TIMBRADO = /timbrado\D{0,15}(\d{7,9})/i
 
@@ -95,8 +98,18 @@ export function detectarDatos(texto: string, rucCliente: string): DatosDetectado
   while ((m = RE_RUC.exec(t)) !== null) {
     candidatos.push({ ruc: `${m[1]}-${m[2]}`, indice: m.index, d: m[1] + m[2] })
   }
+  RE_RUC_ETQ.lastIndex = 0
+  while ((m = RE_RUC_ETQ.exec(t)) !== null) {
+    candidatos.push({ ruc: `${m[1]}-${m[2]}`, indice: m.index, d: m[1] + m[2] })
+  }
+  // Un mismo RUC puede venir por ambos patrones: nos quedamos con su 1ª aparición.
+  const porDigitos = new Map<string, { ruc: string; indice: number; d: string }>()
+  for (const c of candidatos) {
+    const prev = porDigitos.get(c.d)
+    if (!prev || c.indice < prev.indice) porDigitos.set(c.d, c)
+  }
   const RE_IMPRENTA = /imp[.\s]|impreso|imprenta|hab[.\s]|habilit/
-  const filtrados = candidatos
+  const filtrados = [...porDigitos.values()]
     .filter((c) => !(clienteDigitos && c.d === clienteDigitos))
     .filter((c) => !RE_IMPRENTA.test(t.slice(Math.max(0, c.indice - 35), c.indice).toLowerCase()))
     .sort((a, b) => a.indice - b.indice)

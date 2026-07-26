@@ -6,7 +6,8 @@ import { Scanner } from './components/Scanner'
 import { ReviewSend } from './components/ReviewSend'
 import { InstallButton } from './components/InstallButton'
 import type { Cliente, Comprobante } from './types'
-import { procesarImagen, type ImagenProcesada } from './lib/image'
+import { procesarImagen } from './lib/image'
+import type { ResultadoEdicion } from './components/ImageEditor'
 import { reconocerTexto } from './lib/ocr'
 import { ocrEnServidor } from './lib/ocrServidor'
 import { crearPdfBuscable } from './lib/pdf'
@@ -170,14 +171,16 @@ export default function App() {
     }
   }
 
-  function reemplazarImagen(id: string, img: ImagenProcesada) {
+  function reemplazarImagen(id: string, r: ResultadoEdicion) {
     actualizarItem(id, {
-      dataUrl: img.dataUrl,
-      blob: img.blob,
-      width: img.width,
-      height: img.height,
+      dataUrl: r.img.dataUrl,
+      blob: r.img.blob,
+      width: r.img.width,
+      height: r.img.height,
+      esquinas: r.esquinas, // recordamos las esquinas para reeditar
+      baseEdicion: r.base, // imagen (con rotación) sobre la que se marcaron
     })
-    ejecutarOCR(id, img.dataUrl) // el recorte cambia el contenido: re-leemos
+    ejecutarOCR(id, r.img.dataUrl) // el recorte cambia el contenido: re-leemos
   }
 
   function eliminarItem(id: string) {

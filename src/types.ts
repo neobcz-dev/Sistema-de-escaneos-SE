@@ -30,11 +30,19 @@ export interface ResultadoOCR {
   palabras: PalabraOCR[]
 }
 
+/** Punto normalizado (0–1) relativo al ancho/alto de la imagen. */
+export interface Punto {
+  x: number
+  y: number
+}
+
 export interface Comprobante {
   id: string
   nombreArchivo: string
   dataUrl: string // JPEG comprimido (preview + base para PDF)
   originalDataUrl: string // base sin filtros, para reeditar de forma no destructiva
+  baseEdicion?: string // imagen sobre la que se marcaron las esquinas (con rotación aplicada)
+  esquinas?: Punto[] // 4 esquinas elegidas/detectadas [tl, tr, br, bl], para recordarlas
   blob: Blob
   width: number
   height: number

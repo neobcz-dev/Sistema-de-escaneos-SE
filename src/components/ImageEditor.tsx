@@ -1,22 +1,31 @@
 import { useEffect, useRef, useState } from 'react'
 import {
+  detectarEsquinas,
   editarImagen,
   recortarPerspectiva,
   type Filtro,
   type ImagenProcesada,
-  type Punto,
 } from '../lib/image'
+import type { Punto } from '../types'
 
 const FILTROS: { id: Filtro; nombre: string; css?: string }[] = [
   { id: 'color', nombre: 'Color' },
   { id: 'gris', nombre: 'Gris', css: 'grayscale(1)' },
-  { id: 'realce', nombre: 'Realce', css: 'grayscale(1) contrast(1.6) brightness(1.05)' },
-  { id: 'bn', nombre: 'B/N', css: 'grayscale(1) contrast(2.2) brightness(1.1)' },
+  { id: 'realce', nombre: 'Realce', css: 'grayscale(1) contrast(1.5) brightness(1.12)' },
+  { id: 'bn', nombre: 'B/N', css: 'grayscale(1) contrast(2.4) brightness(1.15)' },
 ]
+
+export interface ResultadoEdicion {
+  img: ImagenProcesada
+  esquinas: Punto[]
+  base: string
+}
 
 interface Props {
   src: string
-  onAplicar: (img: ImagenProcesada) => void
+  esquinasIniciales?: Punto[]
+  baseInicial?: string
+  onAplicar: (r: ResultadoEdicion) => void
   onCancelar: () => void
 }
 
@@ -29,23 +38,52 @@ const ESQUINAS_INICIAL: Punto[] = [
 ]
 
 /**
- * Editor de imagen: elegir las 4 esquinas del comprobante (cuadrilátero libre),
- * enderezarlo por perspectiva, rotar y aplicar filtro "escaneo".
+ * Editor de imagen: detecta las 4 esquinas del comprobante automáticamente
+ * (ajustables a mano), lo endereza por perspectiva, rota y aplica filtro.
  */
-export function ImageEditor({ src, onAplicar, onCancelar }: Props) {
-  const [preview, setPreview] = useState(src)
-  const [esquinas, setEsquinas] = useState<Punto[]>(ESQUINAS_INICIAL)
+export function ImageEditor({
+  src,
+  esquinasIniciales,
+  baseInicial,
+  onAplicar,
+  onCancelar,
+}: Props) {
+  const [preview, setPreview] = useState(baseInicial ?? src)
+  const [esquinas, setEsquinas] = useState<Punto[]>(esquinasIniciales ?? ESQUINAS_INICIAL)
   const [filtro, setFiltro] = useState<Filtro>('color')
   const [ocupado, setOcupado] = useState(false)
+  const [detectando, setDetectando] = useState(!esquinasIniciales)
   const imgRef = useRef<HTMLImageElement>(null)
   const arrastreRef = useRef<number | null>(null)
+
+  // Detección automática de esquinas al abrir (si no venían guardadas).
+  useEffect(() => {
+    if (esquinasIniciales) return
+    let vivo = true
+    ;(async () => {
+      const e = await detectarEsquinas(src)
+      if (vivo && e) setEsquinas(e)
+      if (vivo) setDetectando(false)
+    })()
+    return () => {
+      vivo = false
+    }
+  }, [src, esquinasIniciales])
+
+  async function autoDetectar() {
+    setDetectando(true)
+    const e = await detectarEsquinas(preview)
+    setEsquinas(e ?? ESQUINAS_INICIAL)
+    setDetectando(false)
+  }
 
   async function rotar() {
     setOcupado(true)
     try {
       const r = await editarImagen(preview, { rotacion: 90, maxDim: 2200, quality: 0.92 })
       setPreview(r.dataUrl)
-      setEsquinas(ESQUINAS_INICIAL)
+      const e = await detectarEsquinas(r.dataUrl)
+      setEsquinas(e ?? ESQUINAS_INICIAL)
     } finally {
       setOcupado(false)
     }
@@ -54,8 +92,8 @@ export function ImageEditor({ src, onAplicar, onCancelar }: Props) {
   async function aplicar() {
     setOcupado(true)
     try {
-      const r = await recortarPerspectiva(preview, esquinas, filtro)
-      onAplicar(r)
+      const img = await recortarPerspectiva(preview, esquinas, filtro)
+      onAplicar({ img, esquinas, base: preview })
     } finally {
       setOcupado(false)
     }
@@ -93,15 +131,16 @@ export function ImageEditor({ src, onAplicar, onCancelar }: Props) {
         </button>
         <span className="text-sm font-semibold text-white">Ajustar esquinas</span>
         <button
-          onClick={() => setEsquinas(ESQUINAS_INICIAL)}
-          className="text-sm font-semibold text-white/80"
+          onClick={autoDetectar}
+          disabled={detectando}
+          className="text-sm font-semibold text-celeste disabled:opacity-50"
         >
-          Reiniciar
+          {detectando ? 'Detectando…' : 'Auto'}
         </button>
       </div>
 
       <p className="px-4 pb-2 text-center text-xs text-white/60">
-        Arrastre los 4 puntos hasta las esquinas del comprobante. Lo enderezamos al aplicar.
+        Detectamos las esquinas solas; arrastre los puntos si hace falta. Lo enderezamos al aplicar.
       </p>
 
       <div className="relative flex flex-1 items-center justify-center overflow-hidden px-4">

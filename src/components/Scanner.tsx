@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import type { Comprobante, TipoComprobante } from '../types'
-import type { ImagenProcesada } from '../lib/image'
 import { codigoTipo, TIPOS_COMPROBANTE } from '../lib/util'
 import { CameraCapture } from './CameraCapture'
-import { ImageEditor } from './ImageEditor'
+import { ImageEditor, type ResultadoEdicion } from './ImageEditor'
 
 interface Props {
   items: Comprobante[]
@@ -17,7 +16,7 @@ interface Props {
   ) => void
   onEditarTipo: (id: string, tipo: TipoComprobante) => void
   onBuscarProveedor: (id: string, ruc: string) => void
-  onReemplazarImagen: (id: string, img: ImagenProcesada) => void
+  onReemplazarImagen: (id: string, r: ResultadoEdicion) => void
   onAtras: () => void
   onContinuar: () => void
 }
@@ -204,9 +203,11 @@ export function Scanner({
       {editando && (
         <ImageEditor
           src={editando.originalDataUrl}
+          esquinasIniciales={editando.esquinas}
+          baseInicial={editando.baseEdicion}
           onCancelar={() => setEditando(null)}
-          onAplicar={(img) => {
-            onReemplazarImagen(editando.id, img)
+          onAplicar={(r) => {
+            onReemplazarImagen(editando.id, r)
             setEditando(null)
           }}
         />
