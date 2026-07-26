@@ -67,7 +67,6 @@ export function ReviewSend({
           <Dato etiqueta="Cliente" valor={cliente.nombre} />
           <Dato etiqueta="RUC / C.I." valor={cliente.ruc} />
           {cliente.email && <Dato etiqueta="Correo" valor={cliente.email} />}
-          {cliente.periodo && <Dato etiqueta="Período" valor={cliente.periodo} />}
           <Dato etiqueta="Comprobantes" valor={String(items.length)} />
         </dl>
         {cliente.nota && (

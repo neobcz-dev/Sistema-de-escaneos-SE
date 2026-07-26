@@ -86,36 +86,25 @@ export function ClientForm({ valor, onContinuar }: Props) {
         </div>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div>
-          <label htmlFor="tipo" className="field-label">
-            Tipo de comprobante (por defecto)
-          </label>
-          <select
-            id="tipo"
-            className="field-input"
-            value={cliente.tipo}
-            onChange={(e) => set('tipo', e.target.value as TipoComprobante)}
-          >
-            {TIPOS.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="periodo" className="field-label">
-            Período (mes)
-          </label>
-          <input
-            id="periodo"
-            type="month"
-            className="field-input"
-            value={cliente.periodo}
-            onChange={(e) => set('periodo', e.target.value)}
-          />
-        </div>
+      <div>
+        <label htmlFor="tipo" className="field-label">
+          Tipo de comprobante (por defecto)
+        </label>
+        <select
+          id="tipo"
+          className="field-input"
+          value={cliente.tipo}
+          onChange={(e) => set('tipo', e.target.value as TipoComprobante)}
+        >
+          {TIPOS.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-anthracite/50">
+          El período se registra automáticamente (mes de envío).
+        </p>
       </div>
 
       <div>

@@ -13,7 +13,6 @@ export interface Cliente {
   ruc: string
   email: string
   tipo: TipoComprobante
-  periodo: string // AAAA-MM
   nota: string
 }
 

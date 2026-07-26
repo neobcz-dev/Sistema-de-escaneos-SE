@@ -23,7 +23,7 @@ type Handle = 'nw' | 'ne' | 'sw' | 'se' | 'move' | null
 export function ImageEditor({ src, onAplicar, onCancelar }: Props) {
   const [preview, setPreview] = useState(src)
   const [crop, setCrop] = useState<Rect>(RECT_INICIAL)
-  const [escaneo, setEscaneo] = useState(true)
+  const [escaneo, setEscaneo] = useState(false)
   const [ocupado, setOcupado] = useState(false)
   const imgRef = useRef<HTMLImageElement>(null)
   const dragRef = useRef<{ handle: Handle; startX: number; startY: number; startRect: Rect }>({

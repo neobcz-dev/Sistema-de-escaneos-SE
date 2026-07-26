@@ -7,7 +7,7 @@ import { ImageEditor } from './ImageEditor'
 
 interface Props {
   items: Comprobante[]
-  onAgregarArchivos: (files: FileList | File[]) => void
+  onAgregarArchivos: (files: FileList | File[], autoRecorte?: boolean) => void
   onEliminar: (id: string) => void
   onEditarOCR: (id: string, texto: string) => void
   onEditarCampo: (id: string, campo: 'rucProveedor' | 'nroFactura', valor: string) => void
@@ -178,7 +178,9 @@ export function Scanner({
 
       {camara && (
         <CameraCapture
-          onCapturar={(blob) => onAgregarArchivos([new File([blob], 'captura.jpg', { type: 'image/jpeg' })])}
+          onCapturar={(blob) =>
+            onAgregarArchivos([new File([blob], 'captura.jpg', { type: 'image/jpeg' })], true)
+          }
           onCerrar={() => setCamara(false)}
         />
       )}

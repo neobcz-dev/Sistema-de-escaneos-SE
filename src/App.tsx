@@ -11,7 +11,7 @@ import { reconocerTexto } from './lib/ocr'
 import { crearPdfBuscable } from './lib/pdf'
 import { detectarDatos, detectarTipo } from './lib/parse'
 import { subirComprobante } from './lib/upload'
-import { nuevoId, periodoActual, selloTiempo, slug } from './lib/util'
+import { nuevoId, selloTiempo, slug } from './lib/util'
 import type { TipoComprobante } from './types'
 import { EMPRESA } from './config'
 
@@ -20,7 +20,6 @@ const CLIENTE_INICIAL: Cliente = {
   ruc: '',
   email: '',
   tipo: 'Factura',
-  periodo: periodoActual(),
   nota: '',
 }
 
@@ -57,12 +56,12 @@ export default function App() {
       .catch(() => actualizarItem(id, { ocrEstado: 'error', ocrProgreso: 1 }))
   }
 
-  async function agregarArchivos(files: FileList | File[]) {
+  async function agregarArchivos(files: FileList | File[], autoRecorte = false) {
     const lista = Array.from(files).filter((f) => f.type.startsWith('image/'))
     for (const file of lista) {
       const id = nuevoId()
       try {
-        const img = await procesarImagen(file)
+        const img = await procesarImagen(file, { autoRecorte })
         const nuevo: Comprobante = {
           id,
           nombreArchivo: construirNombre(cliente, id),

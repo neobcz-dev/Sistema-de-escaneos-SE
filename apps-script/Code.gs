@@ -31,19 +31,25 @@ function doPost(e) {
     var raiz = DriveApp.getFolderById(FOLDER_ID);
     var carpetaCliente = obtenerOCrearSubcarpeta(raiz, nombreCarpetaCliente(cliente));
 
+    // Subcarpeta por período (mes). Estructura: Cliente (RUC) / AAAA-MM /
+    var periodo = periodoValido(cliente.periodo)
+      ? cliente.periodo
+      : Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM');
+    var carpetaMes = obtenerOCrearSubcarpeta(carpetaCliente, periodo);
+
     var bytes = Utilities.base64Decode(archivo.base64);
     var mime = archivo.mimeType || 'image/jpeg';
     var nombre = archivo.nombre || ('comprobante_' + Date.now() + '.jpg');
     var blob = Utilities.newBlob(bytes, mime, nombre);
 
-    var file = carpetaCliente.createFile(blob);
+    var file = carpetaMes.createFile(blob);
     file.setDescription(construirDescripcion(data));
 
     return jsonResponse({
       ok: true,
       url: file.getUrl(),
       fileId: file.getId(),
-      carpeta: carpetaCliente.getName()
+      carpeta: carpetaCliente.getName() + ' / ' + periodo
     });
   } catch (err) {
     return jsonResponse({ ok: false, error: String(err && err.message ? err.message : err) });
@@ -82,6 +88,10 @@ function obtenerOCrearSubcarpeta(padre, nombre) {
   var existentes = padre.getFoldersByName(nombre);
   if (existentes.hasNext()) return existentes.next();
   return padre.createFolder(nombre);
+}
+
+function periodoValido(p) {
+  return typeof p === 'string' && /^\d{4}-\d{2}$/.test(p);
 }
 
 function construirDescripcion(data) {
