@@ -12,7 +12,7 @@
 
 export const APPS_SCRIPT_URL: string =
   (import.meta.env.VITE_APPS_SCRIPT_URL as string | undefined)?.trim() ||
-  'PEGAR_AQUI_LA_URL_DEL_APPS_SCRIPT'
+  'https://script.google.com/macros/s/AKfycbw_2ByL8lzCndQkutWNACnDWPjXWsdmQcsrQOW9lb9Y_EpENiuDZaplAuBylFqe0XnI/exec'
 
 // Carpeta de Google Drive indicada por Servicio Empresarial.
 export const DRIVE_FOLDER_ID = '1w4zPtnayNonsFU2-36EI-JWpQNKZbvDq'
