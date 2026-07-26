@@ -1,5 +1,6 @@
 import type { Cliente, Comprobante } from '../types'
 import { appsScriptConfigurado, EMPRESA } from '../config'
+import { codigoTipo } from '../lib/util'
 
 interface Props {
   cliente: Cliente
@@ -65,7 +66,6 @@ export function ReviewSend({
         <dl className="grid grid-cols-3 gap-x-3 gap-y-2 text-sm">
           <Dato etiqueta="Cliente" valor={cliente.nombre} />
           <Dato etiqueta="RUC / C.I." valor={cliente.ruc} />
-          <Dato etiqueta="Tipo" valor={cliente.tipo} />
           {cliente.email && <Dato etiqueta="Correo" valor={cliente.email} />}
           {cliente.periodo && <Dato etiqueta="Período" valor={cliente.periodo} />}
           <Dato etiqueta="Comprobantes" valor={String(items.length)} />
@@ -87,15 +87,15 @@ export function ReviewSend({
             />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-navy">
-                {c.rucProveedor || c.nroFactura
-                  ? [c.rucProveedor && `RUC ${c.rucProveedor}`, c.nroFactura]
-                      .filter(Boolean)
-                      .join(' · ')
-                  : `Comprobante ${i + 1}`}
+                <span className="mr-1 rounded bg-navy/10 px-1.5 py-0.5 text-xs font-bold text-navy">
+                  {codigoTipo(c.tipo).codigo}
+                </span>
+                {[c.rucProveedor && `RUC ${c.rucProveedor}`, c.nroFactura]
+                  .filter(Boolean)
+                  .join(' · ') || `Comprobante ${i + 1}`}
               </p>
               <p className="truncate text-xs text-anthracite/60">
-                📄 PDF buscable ·{' '}
-                {c.ocrTexto ? c.ocrTexto.replace(/\s+/g, ' ').slice(0, 40) : 'sin texto'}
+                📄 PDF buscable · {c.tipo}
               </p>
             </div>
             <EstadoSubidaBadge comp={c} />

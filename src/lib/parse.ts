@@ -11,10 +11,40 @@
  * identificó con SU propio RUC, lo excluimos y nos quedamos con "el otro".
  */
 
+import type { TipoComprobante } from '../types'
+
 export interface DatosDetectados {
   rucProveedor: string
   nroFactura: string
   timbrado: string
+}
+
+function sinAcentos(s: string): string {
+  return s
+    .replace(/[ÁÀÄÂ]/g, 'A')
+    .replace(/[ÉÈËÊ]/g, 'E')
+    .replace(/[ÍÌÏÎ]/g, 'I')
+    .replace(/[ÓÒÖÔ]/g, 'O')
+    .replace(/[ÚÙÜÛ]/g, 'U')
+}
+
+// El tipo se detecta por su leyenda obligatoria. El orden importa:
+// AUTOFACTURA contiene "FACTURA", así que va antes.
+const REGLAS_TIPO: Array<[RegExp, TipoComprobante]> = [
+  [/AUTOFACTURA/, 'Autofactura'],
+  [/NOTA\s+DE\s+CREDITO/, 'Nota de crédito'],
+  [/NOTA\s+DE\s+DEBITO/, 'Nota de débito'],
+  [/BOLETA/, 'Boleta / Ticket'],
+  [/RETENCION/, 'Comprobante de retención'],
+  [/RECIBO/, 'Recibo'],
+  [/FACTURA/, 'Factura'],
+]
+
+/** Detecta el tipo de comprobante por su leyenda. Devuelve '' si no lo halla. */
+export function detectarTipo(texto: string): TipoComprobante | '' {
+  const t = sinAcentos((texto || '').toUpperCase())
+  for (const [re, tipo] of REGLAS_TIPO) if (re.test(t)) return tipo
+  return ''
 }
 
 /** Deja solo los dígitos de un RUC/cédula para comparar. */

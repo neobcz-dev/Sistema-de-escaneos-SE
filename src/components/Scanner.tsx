@@ -1,16 +1,17 @@
 import { useState } from 'react'
-import type { Comprobante } from '../types'
+import type { Comprobante, TipoComprobante } from '../types'
 import type { ImagenProcesada } from '../lib/image'
+import { codigoTipo, TIPOS_COMPROBANTE } from '../lib/util'
 import { CameraCapture } from './CameraCapture'
 import { ImageEditor } from './ImageEditor'
 
 interface Props {
   items: Comprobante[]
-  numerado: boolean
   onAgregarArchivos: (files: FileList | File[]) => void
   onEliminar: (id: string) => void
   onEditarOCR: (id: string, texto: string) => void
   onEditarCampo: (id: string, campo: 'rucProveedor' | 'nroFactura', valor: string) => void
+  onEditarTipo: (id: string, tipo: TipoComprobante) => void
   onReemplazarImagen: (id: string, img: ImagenProcesada) => void
   onAtras: () => void
   onContinuar: () => void
@@ -18,11 +19,11 @@ interface Props {
 
 export function Scanner({
   items,
-  numerado,
   onAgregarArchivos,
   onEliminar,
   onEditarOCR,
   onEditarCampo,
+  onEditarTipo,
   onReemplazarImagen,
   onAtras,
   onContinuar,
@@ -93,30 +94,51 @@ export function Scanner({
                     </button>
                   </div>
 
-                  <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div className="mt-2 space-y-2">
                     <div>
-                      <label className="field-label text-xs">RUC proveedor</label>
-                      <input
+                      <label className="field-label text-xs">
+                        Tipo de comprobante{' '}
+                        {c.ocrEstado === 'listo' && (
+                          <span className="font-normal text-emerald-600">· detectado</span>
+                        )}
+                      </label>
+                      <select
                         className="field-input py-2 text-sm"
-                        placeholder={c.ocrEstado === 'procesando' ? '…' : 'No detectado'}
-                        value={c.rucProveedor}
-                        onChange={(e) => onEditarCampo(c.id, 'rucProveedor', e.target.value)}
-                      />
+                        value={c.tipo}
+                        onChange={(e) => onEditarTipo(c.id, e.target.value as TipoComprobante)}
+                      >
+                        {TIPOS_COMPROBANTE.map((t) => (
+                          <option key={t} value={t}>
+                            {t} ({codigoTipo(t).codigo})
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                    <div>
-                      <label className="field-label text-xs">N° comprobante</label>
-                      <input
-                        className="field-input py-2 text-sm"
-                        placeholder={
-                          c.ocrEstado === 'procesando'
-                            ? '…'
-                            : numerado
-                              ? '001-001-0000001'
-                              : 'N° libre (ej. 0001)'
-                        }
-                        value={c.nroFactura}
-                        onChange={(e) => onEditarCampo(c.id, 'nroFactura', e.target.value)}
-                      />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="field-label text-xs">RUC proveedor</label>
+                        <input
+                          className="field-input py-2 text-sm"
+                          placeholder={c.ocrEstado === 'procesando' ? '…' : 'No detectado'}
+                          value={c.rucProveedor}
+                          onChange={(e) => onEditarCampo(c.id, 'rucProveedor', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="field-label text-xs">N° comprobante</label>
+                        <input
+                          className="field-input py-2 text-sm"
+                          placeholder={
+                            c.ocrEstado === 'procesando'
+                              ? '…'
+                              : codigoTipo(c.tipo).numerado
+                                ? '001-001-0000001'
+                                : 'N° libre (ej. 0001)'
+                          }
+                          value={c.nroFactura}
+                          onChange={(e) => onEditarCampo(c.id, 'nroFactura', e.target.value)}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>

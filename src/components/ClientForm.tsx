@@ -1,17 +1,8 @@
 import { useState } from 'react'
 import type { Cliente, TipoComprobante } from '../types'
-import { emailValido, rucValido } from '../lib/util'
+import { emailValido, rucValido, TIPOS_COMPROBANTE } from '../lib/util'
 
-const TIPOS: TipoComprobante[] = [
-  'Factura',
-  'Boleta / Ticket',
-  'Autofactura',
-  'Nota de crédito',
-  'Nota de débito',
-  'Recibo',
-  'Comprobante de retención',
-  'Otro',
-]
+const TIPOS = TIPOS_COMPROBANTE
 
 interface Props {
   valor: Cliente
@@ -98,7 +89,7 @@ export function ClientForm({ valor, onContinuar }: Props) {
       <div className="grid gap-5 sm:grid-cols-2">
         <div>
           <label htmlFor="tipo" className="field-label">
-            Tipo de comprobante
+            Tipo de comprobante (por defecto)
           </label>
           <select
             id="tipo"

@@ -43,6 +43,7 @@ export interface Comprobante {
   ocrEstado: EstadoOCR
   ocrProgreso: number // 0..1
   // Datos detectados automáticamente (editables por el usuario)
+  tipo: TipoComprobante
   rucProveedor: string
   nroFactura: string
   timbrado: string

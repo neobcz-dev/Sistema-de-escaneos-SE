@@ -51,6 +51,18 @@ export function emailValido(email: string): boolean {
 
 import type { TipoComprobante } from '../types'
 
+/** Lista de tipos de comprobante (para los selectores). */
+export const TIPOS_COMPROBANTE: TipoComprobante[] = [
+  'Factura',
+  'Boleta / Ticket',
+  'Autofactura',
+  'Nota de crédito',
+  'Nota de débito',
+  'Recibo',
+  'Comprobante de retención',
+  'Otro',
+]
+
 /**
  * Código de 3 letras por tipo de comprobante y si lleva numeración.
  * Solo Factura, Nota de crédito y Nota de débito usan el formato NNN-NNN-NNNNNNN.

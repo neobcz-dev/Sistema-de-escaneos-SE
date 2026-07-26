@@ -18,8 +18,8 @@ export interface RespuestaSubida {
  * - Recibo (REC), retención (RET) y Otros (OTROS) admiten numeración libre.
  * Si no hay número, se omite y queda solo "RUC_TDOC".
  */
-function construirNombre(cliente: Cliente, comp: Comprobante): string {
-  const { codigo } = codigoTipo(cliente.tipo)
+function construirNombre(comp: Comprobante): string {
+  const { codigo } = codigoTipo(comp.tipo)
   const ruc = limpiarNumero(comp.rucProveedor) || 'SIN-RUC'
   const nro = limpiarRef(comp.nroFactura)
   return nro ? `${ruc}_${codigo} ${nro}.pdf` : `${ruc}_${codigo}.pdf`
@@ -47,12 +47,13 @@ export async function subirComprobante(
       nota: cliente.nota,
     },
     detectado: {
+      tipo: comp.tipo,
       rucProveedor: comp.rucProveedor,
       nroFactura: comp.nroFactura,
       timbrado: comp.timbrado,
     },
     archivo: {
-      nombre: construirNombre(cliente, comp),
+      nombre: construirNombre(comp),
       mimeType: 'application/pdf',
       base64,
     },
