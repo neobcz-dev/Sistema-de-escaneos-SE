@@ -77,7 +77,10 @@ export function ImageEditor({
   const [detectando, setDetectando] = useState(!esquinasIniciales)
   // Lupa: posición del toque (cx,cy) y de la esquina en la imagen (nx,ny).
   const [lupa, setLupa] = useState<{ cx: number; cy: number; nx: number; ny: number } | null>(null)
+  // Rectángulo real donde se dibuja la imagen (medido), para alinear el overlay.
+  const [caja, setCaja] = useState<{ left: number; top: number; width: number; height: number } | null>(null)
   const imgRef = useRef<HTMLImageElement>(null)
+  const contRef = useRef<HTMLDivElement>(null)
   const arrastreRef = useRef<number | null>(null)
 
   // Detección automática de esquinas al abrir (si no venían guardadas).
@@ -147,6 +150,28 @@ export function ImageEditor({
     }
   }, [])
 
+  // Mide el rectángulo REAL de la imagen (dentro del contenedor) para que el
+  // overlay de esquinas quede exactamente encima, sin desplazarse.
+  useEffect(() => {
+    const medir = () => {
+      const img = imgRef.current
+      const cont = contRef.current
+      if (!img || !cont) return
+      const ir = img.getBoundingClientRect()
+      const cr = cont.getBoundingClientRect()
+      setCaja({ left: ir.left - cr.left, top: ir.top - cr.top, width: ir.width, height: ir.height })
+    }
+    medir()
+    const ro = new ResizeObserver(medir)
+    if (imgRef.current) ro.observe(imgRef.current)
+    if (contRef.current) ro.observe(contRef.current)
+    window.addEventListener('resize', medir)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', medir)
+    }
+  }, [preview])
+
   const puntosSvg = esquinas.map((p) => `${p.x * 100},${p.y * 100}`).join(' ')
 
   return (
@@ -169,47 +194,60 @@ export function ImageEditor({
         Detectamos las esquinas solas; arrastre los puntos si hace falta. Lo enderezamos al aplicar.
       </p>
 
-      <div className="relative flex flex-1 items-center justify-center overflow-hidden px-4">
-        <div className="relative inline-block max-h-full max-w-full">
-          <img
-            ref={imgRef}
-            src={preview}
-            alt="Editar"
-            draggable={false}
-            className="max-h-[58vh] max-w-full select-none touch-none"
-            style={{ filter: cssFiltro(filtro, ajustes) }}
-          />
-          {/* Cuadrilátero (SVG superpuesto exactamente sobre la imagen). */}
-          <svg
-            className="pointer-events-none absolute inset-0 h-full w-full"
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-          >
-            <polygon
-              points={puntosSvg}
-              fill="rgba(62,166,221,0.12)"
-              stroke="#3EA6DD"
-              strokeWidth="0.6"
-              vectorEffect="non-scaling-stroke"
-            />
-          </svg>
-          {/* Manijas de esquina (área táctil grande). */}
-          {esquinas.map((p, idx) => (
-            <span
-              key={idx}
-              onPointerDown={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                arrastreRef.current = idx
-                setLupa({ cx: e.clientX, cy: e.clientY, nx: p.x, ny: p.y })
-              }}
-              className="absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 touch-none items-center justify-center"
-              style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
+      <div
+        ref={contRef}
+        className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4"
+      >
+        <img
+          ref={imgRef}
+          src={preview}
+          alt="Editar"
+          draggable={false}
+          onLoad={() => {
+            const img = imgRef.current
+            const cont = contRef.current
+            if (!img || !cont) return
+            const ir = img.getBoundingClientRect()
+            const cr = cont.getBoundingClientRect()
+            setCaja({ left: ir.left - cr.left, top: ir.top - cr.top, width: ir.width, height: ir.height })
+          }}
+          className="block max-h-full max-w-full select-none touch-none"
+          style={{ filter: cssFiltro(filtro, ajustes) }}
+        />
+        {/* Overlay alineado al rectángulo REAL de la imagen (medido). */}
+        {caja && (
+          <div className="pointer-events-none absolute" style={caja}>
+            <svg
+              className="absolute inset-0 h-full w-full"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
             >
-              <span className="h-6 w-6 rounded-full border-2 border-navy bg-celeste shadow-lg" />
-            </span>
-          ))}
-        </div>
+              <polygon
+                points={puntosSvg}
+                fill="rgba(62,166,221,0.12)"
+                stroke="#3EA6DD"
+                strokeWidth="0.6"
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+            {/* Manijas de esquina (área táctil grande). */}
+            {esquinas.map((p, idx) => (
+              <span
+                key={idx}
+                onPointerDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  arrastreRef.current = idx
+                  setLupa({ cx: e.clientX, cy: e.clientY, nx: p.x, ny: p.y })
+                }}
+                className="pointer-events-auto absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 touch-none items-center justify-center"
+                style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
+              >
+                <span className="h-6 w-6 rounded-full border-2 border-navy bg-celeste shadow-lg" />
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Lupa: muestra la zona ampliada de la esquina que se arrastra, ubicada
