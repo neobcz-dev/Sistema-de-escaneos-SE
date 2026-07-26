@@ -6,7 +6,7 @@ import { Scanner } from './components/Scanner'
 import { ReviewSend } from './components/ReviewSend'
 import { InstallButton } from './components/InstallButton'
 import type { Cliente, Comprobante } from './types'
-import { procesarImagen } from './lib/image'
+import { procesarImagen, detectarEsquinas } from './lib/image'
 import type { ResultadoEdicion } from './components/ImageEditor'
 import { reconocerTexto } from './lib/ocr'
 import { ocrEnServidor } from './lib/ocrServidor'
@@ -134,24 +134,26 @@ export default function App() {
     actualizarItem(id, { nombreProveedor: nombre })
   }
 
-  async function agregarArchivos(files: FileList | File[], autoRecorte = true) {
+  async function agregarArchivos(files: FileList | File[], autoDetectar = true) {
     const lista = Array.from(files).filter((f) => f.type.startsWith('image/'))
     for (const file of lista) {
       const id = nuevoId()
       try {
-        // Original SIN recortar (para el editor manual) y versión recortada.
+        // Trabajamos sobre la foto completa (sin recortar). Detectamos las 4
+        // esquinas del comprobante para MOSTRARLAS sobre la miniatura; el recorte
+        // por perspectiva se aplica cuando el usuario confirma en el editor.
         const original = await procesarImagen(file, { autoRecorte: false })
-        const img = autoRecorte
-          ? await procesarImagen(original.dataUrl, { autoRecorte: true })
-          : original
+        const esquinas = autoDetectar ? await detectarEsquinas(original.dataUrl) : null
         const nuevo: Comprobante = {
           id,
           nombreArchivo: construirNombre(cliente, id),
-          dataUrl: img.dataUrl,
+          dataUrl: original.dataUrl,
           originalDataUrl: original.dataUrl,
-          blob: img.blob,
-          width: img.width,
-          height: img.height,
+          esquinas: esquinas ?? undefined,
+          recortado: false,
+          blob: original.blob,
+          width: original.width,
+          height: original.height,
           ocrTexto: '',
           ocrPalabras: [],
           ocrEstado: 'procesando',
@@ -164,7 +166,7 @@ export default function App() {
           subida: 'pendiente',
         }
         setItems((prev) => [...prev, nuevo])
-        ejecutarOCR(id, img.dataUrl)
+        ejecutarOCR(id, original.dataUrl)
       } catch (e) {
         console.error('No se pudo procesar la imagen', e)
       }
@@ -179,6 +181,7 @@ export default function App() {
       height: r.img.height,
       esquinas: r.esquinas, // recordamos las esquinas para reeditar
       baseEdicion: r.base, // imagen (con rotación) sobre la que se marcaron
+      recortado: true, // ya se enderezó: la miniatura muestra el resultado
     })
     ejecutarOCR(id, r.img.dataUrl) // el recorte cambia el contenido: re-leemos
   }

@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import type { Comprobante, TipoComprobante } from '../types'
-import { codigoTipo, TIPOS_COMPROBANTE } from '../lib/util'
+import { codigoTipo, formatearNumeroComprobante, TIPOS_COMPROBANTE } from '../lib/util'
 import { CameraCapture } from './CameraCapture'
 import { ImageEditor, type ResultadoEdicion } from './ImageEditor'
+import { ZoomViewer } from './ZoomViewer'
 
 interface Props {
   items: Comprobante[]
@@ -35,6 +36,7 @@ export function Scanner({
 }: Props) {
   const [camara, setCamara] = useState(false)
   const [editando, setEditando] = useState<Comprobante | null>(null)
+  const [zoom, setZoom] = useState<Comprobante | null>(null)
 
   function alSeleccionar(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.files && e.target.files.length) onAgregarArchivos(e.target.files)
@@ -74,88 +76,130 @@ export function Scanner({
         <ul className="space-y-4">
           {items.map((c, i) => (
             <li key={c.id} className="card space-y-3">
-              <div className="flex gap-4">
+              <div className="flex items-start justify-between gap-2">
+                <EstadoOCRBadge comp={c} />
                 <button
                   type="button"
-                  onClick={() => setEditando(c)}
-                  className="group relative h-28 w-24 shrink-0 overflow-hidden rounded-lg ring-1 ring-navy/10"
-                  aria-label="Editar imagen"
+                  onClick={() => onEliminar(c.id)}
+                  className="rounded-lg px-2 py-1 text-sm font-semibold text-red-600 hover:bg-red-50"
                 >
-                  <img src={c.dataUrl} alt={`Comprobante ${i + 1}`} className="h-full w-full object-cover" />
-                  <span className="absolute inset-x-0 bottom-0 bg-navy/70 py-0.5 text-center text-[10px] font-semibold text-white">
-                    ✂️ Ajustar
-                  </span>
+                  Eliminar
                 </button>
+              </div>
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <EstadoOCRBadge comp={c} />
-                    <button
-                      type="button"
-                      onClick={() => onEliminar(c.id)}
-                      className="rounded-lg px-2 py-1 text-sm font-semibold text-red-600 hover:bg-red-50"
+              {/* Imagen grande: tocar para ampliar (zoom) y leer los datos. */}
+              <div className="text-center">
+                <div className="relative inline-block max-w-full">
+                  <button
+                    type="button"
+                    onClick={() => setZoom(c)}
+                    className="block overflow-hidden rounded-xl ring-1 ring-navy/10"
+                    aria-label="Ampliar imagen"
+                  >
+                    <img
+                      src={c.dataUrl}
+                      alt={`Comprobante ${i + 1}`}
+                      className="block max-h-80 max-w-full"
+                    />
+                  </button>
+                  {/* Selección detectada (cuadrilátero) sobre la miniatura. */}
+                  {c.esquinas && !c.recortado && (
+                    <svg
+                      className="pointer-events-none absolute inset-0 h-full w-full"
+                      viewBox="0 0 100 100"
+                      preserveAspectRatio="none"
                     >
-                      Eliminar
-                    </button>
-                  </div>
-
-                  <div className="mt-2 space-y-2">
-                    <div>
-                      <label className="field-label text-xs">
-                        Tipo de comprobante{' '}
-                        {c.ocrEstado === 'listo' && (
-                          <span className="font-normal text-emerald-600">· detectado</span>
-                        )}
-                      </label>
-                      <select
-                        className="field-input py-2 text-sm"
-                        value={c.tipo}
-                        onChange={(e) => onEditarTipo(c.id, e.target.value as TipoComprobante)}
-                      >
-                        {TIPOS_COMPROBANTE.map((t) => (
-                          <option key={t} value={t}>
-                            {t} ({codigoTipo(t).codigo})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="field-label text-xs">RUC proveedor</label>
-                        <input
-                          className="field-input py-2 text-sm"
-                          placeholder={c.ocrEstado === 'procesando' ? '…' : 'No detectado'}
-                          value={c.rucProveedor}
-                          onChange={(e) => onEditarCampo(c.id, 'rucProveedor', e.target.value)}
-                          onBlur={(e) => onBuscarProveedor(c.id, e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="field-label text-xs">N° comprobante</label>
-                        <input
-                          className="field-input py-2 text-sm"
-                          placeholder={
-                            c.ocrEstado === 'procesando'
-                              ? '…'
-                              : codigoTipo(c.tipo).numerado
-                                ? '001-001-0000001'
-                                : 'N° libre (ej. 0001)'
-                          }
-                          value={c.nroFactura}
-                          onChange={(e) => onEditarCampo(c.id, 'nroFactura', e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="field-label text-xs">Nombre del proveedor</label>
-                      <input
-                        className="field-input py-2 text-sm"
-                        placeholder="Se busca por el RUC…"
-                        value={c.nombreProveedor}
-                        onChange={(e) => onEditarCampo(c.id, 'nombreProveedor', e.target.value)}
+                      <polygon
+                        points={c.esquinas.map((p) => `${p.x * 100},${p.y * 100}`).join(' ')}
+                        fill="rgba(62,166,221,0.12)"
+                        stroke="#3EA6DD"
+                        strokeWidth="0.8"
+                        vectorEffect="non-scaling-stroke"
                       />
-                    </div>
-                  </div>
+                    </svg>
+                  )}
+                  <span className="pointer-events-none absolute right-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold text-white">
+                    🔍 Tocar para ampliar
+                  </span>
+                </div>
+                <div className="mt-2 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setEditando(c)}
+                    className="rounded-lg bg-navy/5 px-4 py-2 text-sm font-semibold text-navy hover:bg-navy/10"
+                  >
+                    ✂️ Ajustar esquinas y enderezar
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="field-label">
+                    Tipo de comprobante{' '}
+                    {c.ocrEstado === 'listo' && (
+                      <span className="font-normal text-emerald-600">· detectado</span>
+                    )}
+                  </label>
+                  <select
+                    className="field-input"
+                    value={c.tipo}
+                    onChange={(e) => onEditarTipo(c.id, e.target.value as TipoComprobante)}
+                  >
+                    {TIPOS_COMPROBANTE.map((t) => (
+                      <option key={t} value={t}>
+                        {t} ({codigoTipo(t).codigo})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="field-label">RUC proveedor</label>
+                  <input
+                    inputMode="numeric"
+                    className="field-input text-lg tracking-wide"
+                    placeholder={c.ocrEstado === 'procesando' ? 'Leyendo…' : 'No detectado'}
+                    value={c.rucProveedor}
+                    onChange={(e) => onEditarCampo(c.id, 'rucProveedor', e.target.value)}
+                    onBlur={(e) => onBuscarProveedor(c.id, e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="field-label">N° comprobante</label>
+                  <input
+                    inputMode="numeric"
+                    className="field-input text-lg tracking-wide"
+                    placeholder={
+                      c.ocrEstado === 'procesando'
+                        ? 'Leyendo…'
+                        : codigoTipo(c.tipo).numerado
+                          ? '001-001-0000001'
+                          : 'N° libre (ej. 0001)'
+                    }
+                    value={c.nroFactura}
+                    onChange={(e) => onEditarCampo(c.id, 'nroFactura', e.target.value)}
+                    onBlur={(e) =>
+                      onEditarCampo(
+                        c.id,
+                        'nroFactura',
+                        formatearNumeroComprobante(e.target.value, codigoTipo(c.tipo).numerado),
+                      )
+                    }
+                  />
+                  {codigoTipo(c.tipo).numerado && (
+                    <p className="mt-1 text-xs text-anthracite/50">
+                      Complete los ceros solos: escriba 001-001-1 y queda 001-001-0000001.
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="field-label">Nombre del proveedor</label>
+                  <input
+                    className="field-input"
+                    placeholder="Se busca por el RUC…"
+                    value={c.nombreProveedor}
+                    onChange={(e) => onEditarCampo(c.id, 'nombreProveedor', e.target.value)}
+                  />
                 </div>
               </div>
 
@@ -212,6 +256,8 @@ export function Scanner({
           }}
         />
       )}
+
+      {zoom && <ZoomViewer src={zoom.dataUrl} onCerrar={() => setZoom(null)} />}
     </div>
   )
 }

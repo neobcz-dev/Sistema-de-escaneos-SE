@@ -43,6 +43,7 @@ export interface Comprobante {
   originalDataUrl: string // base sin filtros, para reeditar de forma no destructiva
   baseEdicion?: string // imagen sobre la que se marcaron las esquinas (con rotación aplicada)
   esquinas?: Punto[] // 4 esquinas elegidas/detectadas [tl, tr, br, bl], para recordarlas
+  recortado?: boolean // true si ya se aplicó el recorte por perspectiva
   blob: Blob
   width: number
   height: number

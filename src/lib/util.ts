@@ -119,6 +119,23 @@ export function codigoTipo(tipo: TipoComprobante): { codigo: string; numerado: b
   }
 }
 
+/**
+ * Normaliza el N° de comprobante numerado al formato oficial NNN-NNN-NNNNNNN,
+ * rellenando con ceros a la izquierda. Ej: "001-001-1" -> "001-001-0000001",
+ * "1-2-45" -> "001-002-0000045". Para comprobantes de numeración libre (recibos,
+ * otros) devuelve el valor tal cual.
+ */
+export function formatearNumeroComprobante(valor: string, numerado: boolean): string {
+  const v = (valor || '').trim()
+  if (!numerado || !v) return v
+  const grupos = v.split(/[^0-9]+/).filter(Boolean)
+  if (grupos.length < 3) return v // sin estructura est-punto-secuencia, no tocamos
+  const est = grupos[grupos.length - 3].padStart(3, '0')
+  const punto = grupos[grupos.length - 2].padStart(3, '0')
+  const sec = grupos[grupos.length - 1].padStart(7, '0')
+  return `${est}-${punto}-${sec}`
+}
+
 /** Deja solo dígitos y guiones (para el RUC en el nombre del archivo). */
 export function limpiarNumero(s: string): string {
   return (s || '').replace(/[^0-9-]/g, '')

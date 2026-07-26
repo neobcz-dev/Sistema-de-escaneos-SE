@@ -439,6 +439,25 @@ export async function detectarEsquinas(src: string): Promise<Punto[] | null> {
       if (dif < sBL) { sBL = dif; bl = { x, y } }
     }
 
+    // Validación CONSERVADORA: solo aceptamos el cuadrilátero si es "sano".
+    // Si no, devolvemos null y el editor arranca con un recuadro por defecto,
+    // así nunca manda las esquinas "a cualquier lado".
+    const quad = [tl, tr, br, bl]
+    const minx = Math.min(tl.x, tr.x, br.x, bl.x)
+    const maxx = Math.max(tl.x, tr.x, br.x, bl.x)
+    const miny = Math.min(tl.y, tr.y, br.y, bl.y)
+    const maxy = Math.max(tl.y, tr.y, br.y, bl.y)
+    const bboxArea = Math.max(1, (maxx - minx) * (maxy - miny))
+    const areaQuad = areaCuadrilatero(quad)
+    const aspecto = (maxx - minx + 1) / (maxy - miny + 1)
+    if (areaQuad / bboxArea < 0.62) return null // forma rara (protuberancias)
+    if (!esConvexo(quad)) return null // no es un cuadrilátero convexo
+    if (aspecto < 0.25 || aspecto > 4) return null // proporción irreal
+    // cada esquina debe estar cerca de su cuadrante (no colapsadas al centro)
+    const anchoBb = maxx - minx
+    const altoBb = maxy - miny
+    if (anchoBb < aw * 0.25 || altoBb < ah * 0.25) return null
+
     // Pequeño margen hacia afuera (la erosión encogió la máscara ~2 px).
     const cx = (tl.x + tr.x + br.x + bl.x) / 4
     const cy = (tl.y + tr.y + br.y + bl.y) / 4
@@ -450,6 +469,33 @@ export async function detectarEsquinas(src: string): Promise<Punto[] | null> {
   } catch {
     return null
   }
+}
+
+/** Área de un cuadrilátero por la fórmula del cordón (shoelace). */
+function areaCuadrilatero(p: Punto[]): number {
+  let a = 0
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4
+    a += p[i].x * p[j].y - p[j].x * p[i].y
+  }
+  return Math.abs(a) / 2
+}
+
+/** ¿Los 4 vértices forman un polígono convexo (todos los giros del mismo signo)? */
+function esConvexo(p: Punto[]): boolean {
+  let signo = 0
+  for (let i = 0; i < 4; i++) {
+    const a = p[i]
+    const b = p[(i + 1) % 4]
+    const c = p[(i + 2) % 4]
+    const cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)
+    if (cross !== 0) {
+      const s = cross > 0 ? 1 : -1
+      if (signo === 0) signo = s
+      else if (s !== signo) return false
+    }
+  }
+  return true
 }
 
 /** Erosión morfológica 3×3 (mantiene el píxel solo si todos sus vecinos son 1). */
