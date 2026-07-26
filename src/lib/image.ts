@@ -368,6 +368,168 @@ function erosionar(m: Uint8Array, w: number, h: number): Uint8Array {
   return o
 }
 
+export interface Punto {
+  x: number
+  y: number
+}
+
+/**
+ * Recorte con corrección de perspectiva a partir de 4 esquinas MANUALES.
+ * Las esquinas vienen normalizadas (0–1) en orden [sup-izq, sup-der, inf-der,
+ * inf-izq]. Se "endereza" el cuadrilátero a un rectángulo (dewarp por
+ * homografía). Es matemática liviana en canvas: nunca congela ni crashea.
+ */
+export async function recortarPerspectiva(
+  src: string,
+  esquinas: Punto[],
+  filtro: Filtro = 'color',
+  maxDim = 2200,
+  quality = 0.85,
+): Promise<ImagenProcesada> {
+  const img = await loadImage(src)
+
+  // Lienzo fuente LIMITADO (fotos de celular de 12+ MP agotarían memoria).
+  const tope = Math.max(maxDim, 2600)
+  const esc = Math.min(1, tope / Math.max(img.width, img.height))
+  const bw = Math.max(1, Math.round(img.width * esc))
+  const bh = Math.max(1, Math.round(img.height * esc))
+  const fuente = document.createElement('canvas')
+  fuente.width = bw
+  fuente.height = bh
+  fuente.getContext('2d')!.drawImage(img, 0, 0, bw, bh)
+
+  // Esquinas normalizadas -> píxeles del lienzo fuente.
+  const p = esquinas.map((e) => ({
+    x: clampNum(e.x, 0, 1) * bw,
+    y: clampNum(e.y, 0, 1) * bh,
+  }))
+  const [tl, tr, br, bl] = p
+
+  // Tamaño de salida a partir de los largos de los lados (promedio de opuestos).
+  const wTop = dist(tl, tr)
+  const wBot = dist(bl, br)
+  const hL = dist(tl, bl)
+  const hR = dist(tr, br)
+  let outW = Math.round(Math.max(wTop, wBot))
+  let outH = Math.round(Math.max(hL, hR))
+  outW = Math.max(1, outW)
+  outH = Math.max(1, outH)
+  // Tope al lado mayor.
+  const mayor = Math.max(outW, outH)
+  if (mayor > maxDim) {
+    const s = maxDim / mayor
+    outW = Math.max(1, Math.round(outW * s))
+    outH = Math.max(1, Math.round(outH * s))
+  }
+
+  const out = document.createElement('canvas')
+  out.width = outW
+  out.height = outH
+  const octx = out.getContext('2d')!
+  warpPerspectiva(fuente, [tl, tr, br, bl], octx, outW, outH)
+
+  if (filtro === 'bn') filtroDocumento(octx, outW, outH)
+  else if (filtro === 'gris') filtroGris(octx, outW, outH, false)
+  else if (filtro === 'realce') filtroGris(octx, outW, outH, true)
+
+  return canvasAImagen(out, quality)
+}
+
+function dist(a: Punto, b: Punto): number {
+  return Math.hypot(a.x - b.x, a.y - b.y)
+}
+
+function clampNum(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n))
+}
+
+/**
+ * Mapea el cuadrilátero `q` (en píxeles de `fuente`, orden tl,tr,br,bl) al
+ * rectángulo de salida outW×outH mediante una homografía (mapeo cuadrado→quad
+ * de Heckbert, invertido por muestreo inverso) con interpolación bilineal.
+ */
+function warpPerspectiva(
+  fuente: HTMLCanvasElement,
+  q: Punto[],
+  octx: CanvasRenderingContext2D,
+  outW: number,
+  outH: number,
+): void {
+  const sctx = fuente.getContext('2d')!
+  const srcData = sctx.getImageData(0, 0, fuente.width, fuente.height)
+  const sd = srcData.data
+  const sw = fuente.width
+  const sh = fuente.height
+
+  // Coeficientes del mapeo del cuadrado unitario -> cuadrilátero q.
+  const [p0, p1, p2, p3] = q // tl(0,0) tr(1,0) br(1,1) bl(0,1)
+  const dx1 = p1.x - p2.x
+  const dx2 = p3.x - p2.x
+  const dx3 = p0.x - p1.x + p2.x - p3.x
+  const dy1 = p1.y - p2.y
+  const dy2 = p3.y - p2.y
+  const dy3 = p0.y - p1.y + p2.y - p3.y
+
+  let a: number, b: number, c: number, d: number, e: number, f: number, g: number, hh: number
+  if (Math.abs(dx3) < 1e-9 && Math.abs(dy3) < 1e-9) {
+    // Caso afín (el cuadrilátero es un paralelogramo).
+    a = p1.x - p0.x
+    b = p2.x - p1.x
+    c = p0.x
+    d = p1.y - p0.y
+    e = p2.y - p1.y
+    f = p0.y
+    g = 0
+    hh = 0
+  } else {
+    const den = dx1 * dy2 - dx2 * dy1
+    g = (dx3 * dy2 - dx2 * dy3) / den
+    hh = (dx1 * dy3 - dx3 * dy1) / den
+    a = p1.x - p0.x + g * p1.x
+    b = p3.x - p0.x + hh * p3.x
+    c = p0.x
+    d = p1.y - p0.y + g * p1.y
+    e = p3.y - p0.y + hh * p3.y
+    f = p0.y
+  }
+
+  const outImg = octx.createImageData(outW, outH)
+  const od = outImg.data
+  for (let y = 0; y < outH; y++) {
+    const t = (y + 0.5) / outH
+    for (let x = 0; x < outW; x++) {
+      const s = (x + 0.5) / outW
+      const den = g * s + hh * t + 1
+      const sxf = (a * s + b * t + c) / den
+      const syf = (d * s + e * t + f) / den
+      const oIdx = (y * outW + x) * 4
+      // Interpolación bilineal en la fuente (fondo blanco fuera de límites).
+      if (sxf < 0 || syf < 0 || sxf > sw - 1 || syf > sh - 1) {
+        od[oIdx] = od[oIdx + 1] = od[oIdx + 2] = 255
+        od[oIdx + 3] = 255
+        continue
+      }
+      const x0 = sxf | 0
+      const y0 = syf | 0
+      const x1 = x0 + 1 < sw ? x0 + 1 : x0
+      const y1 = y0 + 1 < sh ? y0 + 1 : y0
+      const fx = sxf - x0
+      const fy = syf - y0
+      const i00 = (y0 * sw + x0) * 4
+      const i10 = (y0 * sw + x1) * 4
+      const i01 = (y1 * sw + x0) * 4
+      const i11 = (y1 * sw + x1) * 4
+      for (let k = 0; k < 3; k++) {
+        const top = sd[i00 + k] * (1 - fx) + sd[i10 + k] * fx
+        const bot = sd[i01 + k] * (1 - fx) + sd[i11 + k] * fx
+        od[oIdx + k] = (top * (1 - fy) + bot * fy) | 0
+      }
+      od[oIdx + 3] = 255
+    }
+  }
+  octx.putImageData(outImg, 0, 0)
+}
+
 /** Extrae la parte base64 (sin el prefijo data:) de un data URL. */
 export function dataUrlToBase64(dataUrl: string): string {
   const comma = dataUrl.indexOf(',')
