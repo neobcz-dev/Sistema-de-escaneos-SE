@@ -125,10 +125,12 @@ async function escalarCanvas(
   return canvasAImagen(out, quality)
 }
 
+export type Filtro = 'color' | 'gris' | 'realce' | 'bn'
+
 export interface OpcionesEdicion {
   rotacion?: 0 | 90 | 180 | 270
   crop?: { x: number; y: number; w: number; h: number }
-  escaneo?: boolean
+  filtro?: Filtro
   maxDim?: number
   quality?: number
 }
@@ -138,7 +140,7 @@ export async function editarImagen(
   src: string,
   opciones: OpcionesEdicion = {},
 ): Promise<ImagenProcesada> {
-  const { rotacion = 0, crop, escaneo = false, maxDim = 2200, quality = 0.8 } = opciones
+  const { rotacion = 0, crop, filtro = 'color', maxDim = 2200, quality = 0.8 } = opciones
   const img = await loadImage(src)
 
   // 1) Rotación.
@@ -177,9 +179,39 @@ export async function editarImagen(
   octx.fillRect(0, 0, outW, outH)
   octx.drawImage(rot, cx, cy, cw, ch, 0, 0, outW, outH)
 
-  if (escaneo) filtroDocumento(octx, outW, outH)
+  if (filtro === 'bn') filtroDocumento(octx, outW, outH)
+  else if (filtro === 'gris') filtroGris(octx, outW, outH, false)
+  else if (filtro === 'realce') filtroGris(octx, outW, outH, true)
 
   return canvasAImagen(out, quality)
+}
+
+/** Escala de grises; si `realce`, estira el contraste (auto-niveles). */
+function filtroGris(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  realce: boolean,
+): void {
+  const imgData = ctx.getImageData(0, 0, w, h)
+  const d = imgData.data
+  let min = 255
+  let max = 0
+  const gris = new Float32Array(w * h)
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    const g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]
+    gris[p] = g
+    if (g < min) min = g
+    if (g > max) max = g
+  }
+  const rango = realce && max > min ? 255 / (max - min) : 1
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    let g = gris[p]
+    if (realce) g = (g - min) * rango
+    g = g < 0 ? 0 : g > 255 ? 255 : g
+    d[i] = d[i + 1] = d[i + 2] = g
+  }
+  ctx.putImageData(imgData, 0, 0)
 }
 
 /**

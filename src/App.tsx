@@ -6,7 +6,7 @@ import { Scanner } from './components/Scanner'
 import { ReviewSend } from './components/ReviewSend'
 import { InstallButton } from './components/InstallButton'
 import type { Cliente, Comprobante } from './types'
-import { editarImagen, procesarImagen, type ImagenProcesada } from './lib/image'
+import { procesarImagen, type ImagenProcesada } from './lib/image'
 import { reconocerTexto } from './lib/ocr'
 import { crearPdfBuscable } from './lib/pdf'
 import { detectarDatos, detectarTipo } from './lib/parse'
@@ -67,15 +67,9 @@ export default function App() {
   /** Ejecuta OCR sobre la imagen y autocompleta los datos detectados. */
   async function ejecutarOCR(id: string, dataUrl: string) {
     actualizarItem(id, { ocrEstado: 'procesando', ocrProgreso: 0 })
-    // OCR sobre una versión binarizada (mejor lectura, sobre todo en térmicos).
-    let fuente: Blob | string = dataUrl
-    try {
-      const bin = await editarImagen(dataUrl, { escaneo: true, maxDim: 2400 })
-      fuente = bin.blob
-    } catch {
-      fuente = dataUrl
-    }
-    reconocerTexto(fuente, (p) => actualizarItem(id, { ocrProgreso: p }))
+    // OCR sobre la imagen tal cual (Tesseract binariza mejor por su cuenta que
+    // un filtro fuerte, que suele empeorar la lectura).
+    reconocerTexto(dataUrl, (p) => actualizarItem(id, { ocrProgreso: p }))
       .then(({ texto, palabras }) => {
         const d = detectarDatos(texto, cliente.ruc)
         const tipoDetectado = detectarTipo(texto)
@@ -125,6 +119,7 @@ export default function App() {
           id,
           nombreArchivo: construirNombre(cliente, id),
           dataUrl: img.dataUrl,
+          originalDataUrl: img.dataUrl,
           blob: img.blob,
           width: img.width,
           height: img.height,

@@ -52,12 +52,23 @@ export function soloDigitos(texto: string): string {
   return (texto || '').replace(/\D/g, '')
 }
 
-// N° de comprobante: 3-3-(6 o 7). Muy distintivo y confiable.
-const RE_NRO = /\b(\d{3}-\d{3}-\d{6,7})\b/g
-// RUC / cédula con dígito verificador: 3 a 8 dígitos, guion, 1 dígito.
-const RE_RUC = /\b(\d{3,8}-\d)\b/g
-// Timbrado: la palabra seguida (con ruido de por medio) de 8 dígitos.
-const RE_TIMBRADO = /timbrado\D{0,15}(\d{7,9})\b/i
+// N° de comprobante: formato estricto NNN-NNN-NNNNNNN.
+const RE_NRO_ESTRICTO = /\b(\d{3})-(\d{3})-(\d{6,7})\b/
+// Tolerante al ruido del OCR: separadores pueden ser guion, punto o espacio
+// (en las facturas el número suele estar partido en celdas: "001-002  0000462").
+const RE_NRO_FLEX = /(\d{2,3})[-.\s]{1,3}(\d{3})[-.\s]{1,3}(\d{6,7})/
+// RUC con dígito verificador, admitiendo espacios: "1636907 - 6".
+const RE_RUC = /(\d{5,8})\s*[-–]\s*(\d)(?!\d)/g
+// Timbrado: la palabra seguida (con ruido de por medio) de 7-9 dígitos.
+const RE_TIMBRADO = /timbrado\D{0,15}(\d{7,9})/i
+
+function detectarNumero(t: string): string {
+  const e = t.match(RE_NRO_ESTRICTO)
+  if (e) return `${e[1]}-${e[2]}-${e[3]}`
+  const f = t.match(RE_NRO_FLEX)
+  if (f) return `${f[1]}-${f[2]}-${f[3]}`
+  return ''
+}
 
 /**
  * Analiza el texto OCR y devuelve los datos detectados.
@@ -67,59 +78,24 @@ const RE_TIMBRADO = /timbrado\D{0,15}(\d{7,9})\b/i
 export function detectarDatos(texto: string, rucCliente: string): DatosDetectados {
   const t = texto || ''
 
-  // 1) N° de comprobante (tomamos el primero con formato válido).
-  const nros = Array.from(t.matchAll(RE_NRO)).map((m) => m[1])
-  const nroFactura = nros[0] || ''
+  const nroFactura = detectarNumero(t)
 
-  // 2) Timbrado.
   const mTimb = t.match(RE_TIMBRADO)
   const timbrado = mTimb ? mTimb[1] : ''
 
-  // 3) RUC del proveedor: candidatos, excluyendo el del cliente y los que en
-  //    realidad son parte de un N° de comprobante (3-3-7).
+  // RUC del proveedor: primer RUC del texto que NO sea el del cliente.
+  // (El proveedor figura en el encabezado, arriba; la imprenta al pie.)
   const clienteDigitos = soloDigitos(rucCliente)
-  const nrosDigitos = new Set(nros.map(soloDigitos))
-
-  const candidatos = Array.from(t.matchAll(RE_RUC))
-    .map((m) => ({ valor: m[1], indice: m.index ?? 0 }))
-    .filter((c) => {
-      const d = soloDigitos(c.valor)
-      if (d.length < 4) return false
-      if (clienteDigitos && d === clienteDigitos) return false // es el cliente
-      // Descartar si forma parte de un número de comprobante detectado.
-      for (const nd of nrosDigitos) if (nd.includes(d)) return false
-      return true
-    })
-
-  // Preferimos un candidato que esté cerca de la palabra "RUC".
-  let rucProveedor = ''
-  const posRuc = indicesDe(t.toLowerCase(), 'ruc')
-  if (candidatos.length && posRuc.length) {
-    let mejor = candidatos[0]
-    let mejorDist = Infinity
-    for (const c of candidatos) {
-      for (const p of posRuc) {
-        const dist = Math.abs(c.indice - p)
-        if (dist < mejorDist) {
-          mejorDist = dist
-          mejor = c
-        }
-      }
-    }
-    rucProveedor = mejor.valor
-  } else if (candidatos.length) {
-    rucProveedor = candidatos[0].valor
+  const candidatos: { ruc: string; indice: number; d: string }[] = []
+  let m: RegExpExecArray | null
+  RE_RUC.lastIndex = 0
+  while ((m = RE_RUC.exec(t)) !== null) {
+    candidatos.push({ ruc: `${m[1]}-${m[2]}`, indice: m.index, d: m[1] + m[2] })
   }
+  const filtrados = candidatos
+    .filter((c) => !(clienteDigitos && c.d === clienteDigitos))
+    .sort((a, b) => a.indice - b.indice)
+  const rucProveedor = filtrados.length ? filtrados[0].ruc : ''
 
   return { rucProveedor, nroFactura, timbrado }
-}
-
-function indicesDe(hay: string, needle: string): number[] {
-  const res: number[] = []
-  let i = hay.indexOf(needle)
-  while (i !== -1) {
-    res.push(i)
-    i = hay.indexOf(needle, i + needle.length)
-  }
-  return res
 }

@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { editarImagen, type ImagenProcesada } from '../lib/image'
+import { editarImagen, type Filtro, type ImagenProcesada } from '../lib/image'
+
+const FILTROS: { id: Filtro; nombre: string; css?: string }[] = [
+  { id: 'color', nombre: 'Color' },
+  { id: 'gris', nombre: 'Gris', css: 'grayscale(1)' },
+  { id: 'realce', nombre: 'Realce', css: 'grayscale(1) contrast(1.6) brightness(1.05)' },
+  { id: 'bn', nombre: 'B/N', css: 'grayscale(1) contrast(2.2) brightness(1.1)' },
+]
 
 interface Props {
   src: string
@@ -23,7 +30,7 @@ type Handle = 'nw' | 'ne' | 'sw' | 'se' | 'move' | null
 export function ImageEditor({ src, onAplicar, onCancelar }: Props) {
   const [preview, setPreview] = useState(src)
   const [crop, setCrop] = useState<Rect>(RECT_INICIAL)
-  const [escaneo, setEscaneo] = useState(false)
+  const [filtro, setFiltro] = useState<Filtro>('color')
   const [ocupado, setOcupado] = useState(false)
   const imgRef = useRef<HTMLImageElement>(null)
   const dragRef = useRef<{ handle: Handle; startX: number; startY: number; startRect: Rect }>({
@@ -50,7 +57,7 @@ export function ImageEditor({ src, onAplicar, onCancelar }: Props) {
       const usarCrop = !(crop.x < 0.01 && crop.y < 0.01 && crop.w > 0.98 && crop.h > 0.98)
       const r = await editarImagen(preview, {
         crop: usarCrop ? crop : undefined,
-        escaneo,
+        filtro,
       })
       onAplicar(r)
     } finally {
@@ -143,7 +150,7 @@ export function ImageEditor({ src, onAplicar, onCancelar }: Props) {
             alt="Editar"
             draggable={false}
             className="max-h-[60vh] max-w-full select-none touch-none"
-            style={escaneo ? { filter: 'grayscale(1) contrast(1.35) brightness(1.03)' } : undefined}
+            style={{ filter: FILTROS.find((f) => f.id === filtro)?.css }}
           />
           {/* Overlay de recorte */}
           <div
@@ -166,15 +173,26 @@ export function ImageEditor({ src, onAplicar, onCancelar }: Props) {
       </div>
 
       <div className="safe-bottom space-y-3 bg-black/80 p-4">
-        <div className="flex items-center justify-center gap-3">
-          <button onClick={rotar} disabled={ocupado} className="btn-ghost">
-            ↻ Rotar
-          </button>
+        <div className="flex items-center justify-center gap-2">
+          {FILTROS.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFiltro(f.id)}
+              className={[
+                'rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
+                filtro === f.id ? 'bg-celeste text-navy-dark' : 'bg-white/10 text-white',
+              ].join(' ')}
+            >
+              {f.nombre}
+            </button>
+          ))}
           <button
-            onClick={() => setEscaneo((v) => !v)}
-            className={escaneo ? 'btn-accent' : 'btn-ghost'}
+            onClick={rotar}
+            disabled={ocupado}
+            className="rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-white"
+            title="Rotar 90°"
           >
-            {escaneo ? '📄 Escaneo' : '🎨 Color'}
+            ↻
           </button>
         </div>
         <button onClick={aplicar} disabled={ocupado} className="btn-primary w-full">

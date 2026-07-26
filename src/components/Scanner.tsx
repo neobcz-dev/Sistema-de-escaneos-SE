@@ -200,7 +200,7 @@ export function Scanner({
 
       {editando && (
         <ImageEditor
-          src={editando.dataUrl}
+          src={editando.originalDataUrl}
           onCancelar={() => setEditando(null)}
           onAplicar={(img) => {
             onReemplazarImagen(editando.id, img)

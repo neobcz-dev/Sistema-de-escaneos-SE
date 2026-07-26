@@ -34,6 +34,7 @@ export interface Comprobante {
   id: string
   nombreArchivo: string
   dataUrl: string // JPEG comprimido (preview + base para PDF)
+  originalDataUrl: string // base sin filtros, para reeditar de forma no destructiva
   blob: Blob
   width: number
   height: number
