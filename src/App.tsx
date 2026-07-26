@@ -138,12 +138,16 @@ export default function App() {
     for (const file of lista) {
       const id = nuevoId()
       try {
-        const img = await procesarImagen(file, { autoRecorte })
+        // Original SIN recortar (para el editor manual) y versión recortada.
+        const original = await procesarImagen(file, { autoRecorte: false })
+        const img = autoRecorte
+          ? await procesarImagen(original.dataUrl, { autoRecorte: true })
+          : original
         const nuevo: Comprobante = {
           id,
           nombreArchivo: construirNombre(cliente, id),
           dataUrl: img.dataUrl,
-          originalDataUrl: img.dataUrl,
+          originalDataUrl: original.dataUrl,
           blob: img.blob,
           width: img.width,
           height: img.height,

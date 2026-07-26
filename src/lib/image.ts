@@ -66,30 +66,15 @@ export async function procesarImagen(
     let sw = fuente.width
     let sh = fuente.height
 
+    // Recorte conservador de la hoja (SIN rotar: enderezar automáticamente daba
+    // resultados impredecibles). Si no distingue bien la hoja, no recorta.
     if (autoRecorte) {
       const r = detectarHoja(fuente.getContext('2d')!, fuente.width, fuente.height)
       if (r) {
-        if (Math.abs(r.angulo) > 0.035) {
-          // Inclinación notable (~2°): enderezamos y volvemos a recortar.
-          fuente = rotarCanvasLibre(fuente, -r.angulo)
-          const r2 = detectarHoja(fuente.getContext('2d')!, fuente.width, fuente.height)
-          if (r2) {
-            sx = r2.x
-            sy = r2.y
-            sw = r2.w
-            sh = r2.h
-          } else {
-            sx = 0
-            sy = 0
-            sw = fuente.width
-            sh = fuente.height
-          }
-        } else {
-          sx = r.x
-          sy = r.y
-          sw = r.w
-          sh = r.h
-        }
+        sx = r.x
+        sy = r.y
+        sw = r.w
+        sh = r.h
       }
     }
 
@@ -257,7 +242,7 @@ function detectarHoja(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
-): { x: number; y: number; w: number; h: number; angulo: number } | null {
+): { x: number; y: number; w: number; h: number } | null {
   const escala = Math.min(1, 600 / Math.max(w, h))
   const aw = Math.max(1, Math.round(w * escala))
   const ah = Math.max(1, Math.round(h * escala))
@@ -309,7 +294,6 @@ function detectarHoja(
   const pila = new Int32Array(n)
   let etiqueta = 0
   let mejorArea = 0
-  let mejorEtiqueta = 0
   let bb: { minx: number; miny: number; maxx: number; maxy: number; area: number } | null = null
   for (let s = 0; s < n; s++) {
     if (!mask[s] || lbl[s]) continue
@@ -338,7 +322,6 @@ function detectarHoja(
     }
     if (area > mejorArea) {
       mejorArea = area
-      mejorEtiqueta = etiqueta
       bb = { minx, miny, maxx, maxy, area }
     }
   }
@@ -350,39 +333,6 @@ function detectarHoja(
   const fill = bb.area / (rw * rh)
   // Debe ser una región sensata y bien "rellena" (una hoja, no un scatter).
   if (areaRel < 0.15 || areaRel > 0.95 || fill < 0.45) return null
-
-  // Ángulo de inclinación por momentos del componente principal (para enderezar).
-  let n1 = 0
-  let sx = 0
-  let sy = 0
-  for (let p = 0; p < n; p++) {
-    if (lbl[p] === mejorEtiqueta) {
-      n1++
-      sx += p % aw
-      sy += (p / aw) | 0
-    }
-  }
-  let angulo = 0
-  if (n1 > 0) {
-    const cx = sx / n1
-    const cy = sy / n1
-    let mxx = 0
-    let myy = 0
-    let mxy = 0
-    for (let p = 0; p < n; p++) {
-      if (lbl[p] === mejorEtiqueta) {
-        const dx = (p % aw) - cx
-        const dy = ((p / aw) | 0) - cy
-        mxx += dx * dx
-        myy += dy * dy
-        mxy += dx * dy
-      }
-    }
-    angulo = 0.5 * Math.atan2(2 * (mxy / n1), mxx / n1 - myy / n1)
-    // Normalizar a [-45°, 45°] (corregir la inclinación, no girar la hoja 90°).
-    const q = Math.PI / 2
-    angulo = angulo - q * Math.round(angulo / q)
-  }
 
   // Margen (2% + compensación de la erosión) y mapeo a resolución original.
   const mx = Math.round(rw * 0.02) + 2
@@ -397,26 +347,7 @@ function detectarHoja(
     y: Math.round(y0 * inv),
     w: Math.round((x1 - x0 + 1) * inv),
     h: Math.round((y1 - y0 + 1) * inv),
-    angulo,
   }
-}
-
-/** Rota un canvas por `ang` radianes expandiendo el lienzo, con fondo blanco. */
-function rotarCanvasLibre(cnv: HTMLCanvasElement, ang: number): HTMLCanvasElement {
-  const cos = Math.abs(Math.cos(ang))
-  const sin = Math.abs(Math.sin(ang))
-  const nw = Math.ceil(cnv.width * cos + cnv.height * sin)
-  const nh = Math.ceil(cnv.width * sin + cnv.height * cos)
-  const out = document.createElement('canvas')
-  out.width = nw
-  out.height = nh
-  const ctx = out.getContext('2d')!
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, nw, nh)
-  ctx.translate(nw / 2, nh / 2)
-  ctx.rotate(ang)
-  ctx.drawImage(cnv, -cnv.width / 2, -cnv.height / 2)
-  return out
 }
 
 /** Erosión morfológica 3×3 (mantiene el píxel solo si todos sus vecinos son 1). */
