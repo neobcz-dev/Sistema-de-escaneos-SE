@@ -55,8 +55,10 @@ export function soloDigitos(texto: string): string {
 // N° de comprobante NNN-NNN-NNNNNNN. Separadores SOLO guion o espacio (NO
 // punto, para no confundir con precios como "50.018 300.108") y primer grupo
 // SIEMPRE de 3 dígitos (el establecimiento; "50" no es válido). La secuencia
-// final admite espacios entre dígitos ("00 0 0 4 6 2").
-const RE_NRO = /(\d{3})[-\s]{1,2}(\d{3})[-\s]{1,3}((?:\d[ ]?){6,9})/g
+// final admite espacios entre dígitos ("00 0 0 4 6 2"). Los separadores admiten
+// hasta 3 caracteres para tolerar espacios a ambos lados del guion ("003 - 001
+// - 0025532"), como los produce el texto extraído de un PDF.
+const RE_NRO = /(\d{3})[-–\s]{1,3}(\d{3})[-–\s]{1,3}((?:\d[ ]?){6,9})/g
 // Etiquetas cercanas que confirman que es el N° (no un precio ni un código).
 const RE_NRO_LABEL = /n[°ºo]|nro|numero|factura|comprobante/i
 // RUC con dígito verificador, admitiendo espacios: "1636907 - 6".
