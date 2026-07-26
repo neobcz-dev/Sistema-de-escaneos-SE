@@ -6,10 +6,11 @@ const TIPOS = TIPOS_COMPROBANTE
 
 interface Props {
   valor: Cliente
+  fotosCompartidas?: number
   onContinuar: (cliente: Cliente) => void
 }
 
-export function ClientForm({ valor, onContinuar }: Props) {
+export function ClientForm({ valor, fotosCompartidas = 0, onContinuar }: Props) {
   const [cliente, setCliente] = useState<Cliente>(valor)
   const [tocado, setTocado] = useState(false)
 
@@ -38,6 +39,13 @@ export function ClientForm({ valor, onContinuar }: Props) {
           Estos datos nos permiten asociar sus comprobantes a su cuenta.
         </p>
       </div>
+
+      {fotosCompartidas > 0 && (
+        <div className="rounded-xl bg-celeste/15 px-4 py-3 text-sm font-medium text-navy">
+          📎 {fotosCompartidas} {fotosCompartidas === 1 ? 'foto recibida' : 'fotos recibidas'} de
+          WhatsApp. Identifíquese y las cargamos automáticamente.
+        </div>
+      )}
 
       <div>
         <label htmlFor="nombre" className="field-label">

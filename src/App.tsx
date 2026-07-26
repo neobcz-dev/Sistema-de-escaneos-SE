@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Header } from './components/Header'
 import { Stepper } from './components/Stepper'
 import { ClientForm } from './components/ClientForm'
@@ -29,6 +29,32 @@ export default function App() {
   const [items, setItems] = useState<Comprobante[]>([])
   const [enviando, setEnviando] = useState(false)
   const [finalizado, setFinalizado] = useState(false)
+  // Fotos recibidas desde WhatsApp/galería vía "Compartir con la app".
+  const [compartidas, setCompartidas] = useState<File[]>([])
+
+  useEffect(() => {
+    if (!window.location.search.includes('compartido')) return
+    ;(async () => {
+      try {
+        const cache = await caches.open('se-compartidos')
+        const countRes = await cache.match('shared-count')
+        const count = countRes ? parseInt(await countRes.text(), 10) : 0
+        const files: File[] = []
+        for (let i = 0; i < count; i++) {
+          const r = await cache.match(`shared-${i}`)
+          if (r) {
+            const b = await r.blob()
+            files.push(new File([b], `whatsapp-${i}.jpg`, { type: b.type || 'image/jpeg' }))
+          }
+        }
+        for (const k of await cache.keys()) await cache.delete(k)
+        window.history.replaceState(null, '', window.location.pathname)
+        if (files.length) setCompartidas(files)
+      } catch {
+        // sin fotos compartidas
+      }
+    })()
+  }, [])
 
   function actualizarItem(id: string, cambios: Partial<Comprobante>) {
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...cambios } : it)))
@@ -157,9 +183,14 @@ export default function App() {
         {paso === 0 && (
           <ClientForm
             valor={cliente}
+            fotosCompartidas={compartidas.length}
             onContinuar={(c) => {
               setCliente(c)
               setPaso(1)
+              if (compartidas.length) {
+                agregarArchivos(compartidas, true)
+                setCompartidas([])
+              }
             }}
           />
         )}

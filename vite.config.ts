@@ -11,8 +11,15 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'logo.svg'],
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+      },
       manifest: {
         name: 'Servicio Empresarial · Escaneo de Comprobantes',
         short_name: 'SE Escaneos',
@@ -34,11 +41,17 @@ export default defineConfig({
             purpose: 'maskable',
           },
         ],
-      },
-      workbox: {
-        // No cacheamos las peticiones a Google (subida de archivos).
-        navigateFallbackDenylist: [/^\/macros\//],
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        // Recibir fotos compartidas desde otras apps (WhatsApp, galería…).
+        share_target: {
+          action: `${base}share-target`,
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: {
+            title: 'title',
+            text: 'text',
+            files: [{ name: 'foto', accept: ['image/*'] }],
+          },
+        },
       },
     }),
   ],
