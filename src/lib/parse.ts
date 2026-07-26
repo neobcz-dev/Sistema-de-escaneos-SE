@@ -52,11 +52,13 @@ export function soloDigitos(texto: string): string {
   return (texto || '').replace(/\D/g, '')
 }
 
-// N° de comprobante: formato estricto NNN-NNN-NNNNNNN.
-const RE_NRO_ESTRICTO = /\b(\d{3})-(\d{3})-(\d{6,7})\b/
-// Tolerante al ruido del OCR: separadores por guion/punto/espacio y la
-// secuencia final puede venir con espacios entre dígitos ("00 0 0 4 6 2").
-const RE_NRO_FLEX = /(\d{2,3})[-.\s]{1,2}(\d{3})[-.\s]{1,3}((?:\d[ .]?){6,9})/
+// N° de comprobante NNN-NNN-NNNNNNN. Separadores SOLO guion o espacio (NO
+// punto, para no confundir con precios como "50.018 300.108") y primer grupo
+// SIEMPRE de 3 dígitos (el establecimiento; "50" no es válido). La secuencia
+// final admite espacios entre dígitos ("00 0 0 4 6 2").
+const RE_NRO = /(\d{3})[-\s]{1,2}(\d{3})[-\s]{1,3}((?:\d[ ]?){6,9})/g
+// Etiquetas cercanas que confirman que es el N° (no un precio ni un código).
+const RE_NRO_LABEL = /n[°ºo]|nro|numero|factura|comprobante/i
 // RUC con dígito verificador, admitiendo espacios: "1636907 - 6".
 const RE_RUC = /(\d{5,8})\s*[-–]\s*(\d)(?!\d)/g
 // RUC precedido de su etiqueta "RUC" aunque venga SIN guion: "RUC: 801236444".
@@ -66,14 +68,21 @@ const RE_RUC_ETQ = /r\.?u\.?c\.?[^\d]{0,10}(\d{6,8})\s*[-–]?\s*(\d)(?!\d)/gi
 const RE_TIMBRADO = /timbrado\D{0,15}(\d{7,9})/i
 
 function detectarNumero(t: string): string {
-  const e = t.match(RE_NRO_ESTRICTO)
-  if (e) return `${e[1]}-${e[2]}-${e[3]}`
-  const f = t.match(RE_NRO_FLEX)
-  if (f) {
-    const seq = f[3].replace(/\D/g, '').slice(0, 7)
-    if (seq.length >= 6) return `${f[1]}-${f[2]}-${seq}`
+  // Reúne todos los candidatos con forma NNN-NNN-NNNNNN(N).
+  const candidatos: { num: string; indice: number }[] = []
+  let m: RegExpExecArray | null
+  RE_NRO.lastIndex = 0
+  while ((m = RE_NRO.exec(t)) !== null) {
+    const seq = m[3].replace(/\D/g, '').slice(0, 7)
+    if (seq.length >= 6) candidatos.push({ num: `${m[1]}-${m[2]}-${seq}`, indice: m.index })
   }
-  return ''
+  if (!candidatos.length) return ''
+  // Preferimos el que tiene una etiqueta cerca ("N°", "Factura"…); si ninguno,
+  // el primero (los precios usan punto y ya quedaron descartados por el patrón).
+  const etiquetado = candidatos.find((c) =>
+    RE_NRO_LABEL.test(t.slice(Math.max(0, c.indice - 20), c.indice)),
+  )
+  return (etiquetado || candidatos[0]).num
 }
 
 /**
