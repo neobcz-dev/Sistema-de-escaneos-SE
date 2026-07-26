@@ -99,12 +99,21 @@ export async function procesarImagen(
   }
 }
 
-export type Filtro = 'color' | 'gris' | 'realce' | 'bn'
+export type Filtro = 'color' | 'magico' | 'gris' | 'realce' | 'bn'
+
+/** Ajustes del filtro "mágico": brillo y contraste (rango recomendado -80..80). */
+export interface AjustesFiltro {
+  brillo: number
+  contraste: number
+}
+
+export const AJUSTES_MAGICO: AjustesFiltro = { brillo: 12, contraste: 32 }
 
 export interface OpcionesEdicion {
   rotacion?: 0 | 90 | 180 | 270
   crop?: { x: number; y: number; w: number; h: number }
   filtro?: Filtro
+  ajustes?: AjustesFiltro
   maxDim?: number
   quality?: number
 }
@@ -114,7 +123,7 @@ export async function editarImagen(
   src: string,
   opciones: OpcionesEdicion = {},
 ): Promise<ImagenProcesada> {
-  const { rotacion = 0, crop, filtro = 'color', maxDim = 2200, quality = 0.8 } = opciones
+  const { rotacion = 0, crop, filtro = 'color', ajustes, maxDim = 2200, quality = 0.8 } = opciones
   const img = await loadImage(src)
 
   // 1) Rotación.
@@ -153,7 +162,7 @@ export async function editarImagen(
   octx.fillRect(0, 0, outW, outH)
   octx.drawImage(rot, cx, cy, cw, ch, 0, 0, outW, outH)
 
-  aplicarFiltro(octx, outW, outH, filtro)
+  aplicarFiltro(octx, outW, outH, filtro, ajustes)
 
   return canvasAImagen(out, quality)
 }
@@ -164,10 +173,52 @@ export function aplicarFiltro(
   w: number,
   h: number,
   filtro: Filtro,
+  ajustes?: AjustesFiltro,
 ): void {
-  if (filtro === 'gris') filtroGris(ctx, w, h)
+  if (filtro === 'magico') {
+    const a = ajustes ?? AJUSTES_MAGICO
+    filtroMagico(ctx, w, h, a.brillo, a.contraste)
+  } else if (filtro === 'gris') filtroGris(ctx, w, h)
   else if (filtro === 'realce') filtroEscaneo(ctx, w, h, false)
   else if (filtro === 'bn') filtroEscaneo(ctx, w, h, true)
+}
+
+/**
+ * Filtro "mágico" (estilo ScanSnap): sube brillo y contraste manteniendo el
+ * color, con un realce de saturación suave para que el comprobante quede vivo
+ * y legible. `brillo` y `contraste` son ajustables (rango recomendado -80..80).
+ */
+function filtroMagico(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  brillo: number,
+  contraste: number,
+): void {
+  const imgData = ctx.getImageData(0, 0, w, h)
+  const d = imgData.data
+  // Factor de contraste estándar (contraste en -255..255).
+  const c = Math.max(-255, Math.min(255, contraste))
+  const factor = (259 * (c + 255)) / (255 * (259 - c))
+  for (let i = 0; i < d.length; i += 4) {
+    let r = d[i]
+    let g = d[i + 1]
+    let b = d[i + 2]
+    // Brillo + contraste alrededor de 128.
+    r = factor * (r - 128) + 128 + brillo
+    g = factor * (g - 128) + 128 + brillo
+    b = factor * (b - 128) + 128 + brillo
+    // Realce de saturación suave (aleja del gris).
+    const prom = (r + g + b) / 3
+    const sat = 1.15
+    r = prom + (r - prom) * sat
+    g = prom + (g - prom) * sat
+    b = prom + (b - prom) * sat
+    d[i] = r < 0 ? 0 : r > 255 ? 255 : r
+    d[i + 1] = g < 0 ? 0 : g > 255 ? 255 : g
+    d[i + 2] = b < 0 ? 0 : b > 255 ? 255 : b
+  }
+  ctx.putImageData(imgData, 0, 0)
 }
 
 /** Escala de grises simple. */
@@ -585,6 +636,7 @@ export async function recortarPerspectiva(
   filtro: Filtro = 'color',
   maxDim = 2200,
   quality = 0.85,
+  ajustes?: AjustesFiltro,
 ): Promise<ImagenProcesada> {
   const img = await loadImage(src)
 
@@ -628,7 +680,7 @@ export async function recortarPerspectiva(
   const octx = out.getContext('2d')!
   warpPerspectiva(fuente, [tl, tr, br, bl], octx, outW, outH)
 
-  aplicarFiltro(octx, outW, outH, filtro)
+  aplicarFiltro(octx, outW, outH, filtro, ajustes)
 
   return canvasAImagen(out, quality)
 }

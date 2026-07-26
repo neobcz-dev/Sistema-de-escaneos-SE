@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Comprobante, TipoComprobante } from '../types'
 import { codigoTipo, formatearNumeroComprobante, TIPOS_COMPROBANTE } from '../lib/util'
+import { analizarRuc } from '../lib/ruc'
 import { CameraCapture } from './CameraCapture'
 import { ImageEditor, type ResultadoEdicion } from './ImageEditor'
 import { ZoomViewer } from './ZoomViewer'
@@ -163,6 +164,13 @@ export function Scanner({
                     onChange={(e) => onEditarCampo(c.id, 'rucProveedor', e.target.value)}
                     onBlur={(e) => onBuscarProveedor(c.id, e.target.value)}
                   />
+                  <AvisoRuc
+                    valor={c.rucProveedor}
+                    onCorregir={(ruc) => {
+                      onEditarCampo(c.id, 'rucProveedor', ruc)
+                      onBuscarProveedor(c.id, ruc)
+                    }}
+                  />
                 </div>
                 <div>
                   <label className="field-label">N° comprobante</label>
@@ -258,6 +266,35 @@ export function Scanner({
       )}
 
       {zoom && <ZoomViewer src={zoom.dataUrl} onCerrar={() => setZoom(null)} />}
+    </div>
+  )
+}
+
+/** Aviso de validación del RUC del proveedor + botón para corregir. */
+function AvisoRuc({ valor, onCorregir }: { valor: string; onCorregir: (ruc: string) => void }) {
+  const limpio = (valor || '').trim()
+  if (!limpio || limpio.replace(/\D/g, '').length < 4) return null
+  const a = analizarRuc(limpio)
+  if (a.valido) {
+    return <p className="mt-1 text-xs font-medium text-emerald-600">✓ RUC válido</p>
+  }
+  const mensaje = !a.enRango
+    ? 'El RUC no cae en un rango válido (empresas 8…, personas hasta 7 dígitos).'
+    : a.dv === null
+      ? 'Falta el dígito verificador.'
+      : `El dígito verificador no coincide (para ${a.base} debería ser ${a.dvEsperado}).`
+  return (
+    <div className="mt-1 space-y-1">
+      <p className="text-xs font-medium text-amber-600">⚠️ {mensaje}</p>
+      {a.sugerencia && (
+        <button
+          type="button"
+          onClick={() => onCorregir(a.sugerencia!)}
+          className="rounded-lg bg-celeste/15 px-3 py-1.5 text-xs font-bold text-celeste-dark"
+        >
+          Corregir a {a.sugerencia}
+        </button>
+      )}
     </div>
   )
 }

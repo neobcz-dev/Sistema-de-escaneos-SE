@@ -1,20 +1,39 @@
 import { useEffect, useRef, useState } from 'react'
 import {
+  AJUSTES_MAGICO,
   detectarEsquinas,
   editarImagen,
   recortarPerspectiva,
+  type AjustesFiltro,
   type Filtro,
   type ImagenProcesada,
 } from '../lib/image'
 import type { Punto } from '../types'
 import { useAtrasCierra } from '../lib/useAtras'
 
-const FILTROS: { id: Filtro; nombre: string; css?: string }[] = [
+const FILTROS: { id: Filtro; nombre: string }[] = [
   { id: 'color', nombre: 'Color' },
-  { id: 'gris', nombre: 'Gris', css: 'grayscale(1)' },
-  { id: 'realce', nombre: 'Realce', css: 'grayscale(1) contrast(1.5) brightness(1.12)' },
-  { id: 'bn', nombre: 'B/N', css: 'grayscale(1) contrast(2.4) brightness(1.15)' },
+  { id: 'magico', nombre: '✨ Mágico' },
+  { id: 'gris', nombre: 'Gris' },
+  { id: 'realce', nombre: 'Realce' },
+  { id: 'bn', nombre: 'B/N' },
 ]
+
+/** CSS de vista previa por filtro (aproxima el resultado real del canvas). */
+function cssFiltro(filtro: Filtro, ajustes: AjustesFiltro): string | undefined {
+  switch (filtro) {
+    case 'magico':
+      return `brightness(${1 + ajustes.brillo / 200}) contrast(${1 + ajustes.contraste / 160}) saturate(1.15)`
+    case 'gris':
+      return 'grayscale(1)'
+    case 'realce':
+      return 'grayscale(1) contrast(1.5) brightness(1.12)'
+    case 'bn':
+      return 'grayscale(1) contrast(2.4) brightness(1.15)'
+    default:
+      return undefined
+  }
+}
 
 export interface ResultadoEdicion {
   img: ImagenProcesada
@@ -53,6 +72,7 @@ export function ImageEditor({
   const [preview, setPreview] = useState(baseInicial ?? src)
   const [esquinas, setEsquinas] = useState<Punto[]>(esquinasIniciales ?? ESQUINAS_INICIAL)
   const [filtro, setFiltro] = useState<Filtro>('color')
+  const [ajustes, setAjustes] = useState<AjustesFiltro>(AJUSTES_MAGICO)
   const [ocupado, setOcupado] = useState(false)
   const [detectando, setDetectando] = useState(!esquinasIniciales)
   const imgRef = useRef<HTMLImageElement>(null)
@@ -94,7 +114,7 @@ export function ImageEditor({
   async function aplicar() {
     setOcupado(true)
     try {
-      const img = await recortarPerspectiva(preview, esquinas, filtro)
+      const img = await recortarPerspectiva(preview, esquinas, filtro, 2200, 0.85, ajustes)
       onAplicar({ img, esquinas, base: preview })
     } finally {
       setOcupado(false)
@@ -153,7 +173,7 @@ export function ImageEditor({
             alt="Editar"
             draggable={false}
             className="max-h-[58vh] max-w-full select-none touch-none"
-            style={{ filter: FILTROS.find((f) => f.id === filtro)?.css }}
+            style={{ filter: cssFiltro(filtro, ajustes) }}
           />
           {/* Cuadrilátero (SVG superpuesto exactamente sobre la imagen). */}
           <svg
@@ -188,13 +208,13 @@ export function ImageEditor({
       </div>
 
       <div className="safe-bottom space-y-3 bg-black/80 p-4">
-        <div className="flex items-center justify-center gap-2">
+        <div className="flex items-center justify-center gap-2 overflow-x-auto">
           {FILTROS.map((f) => (
             <button
               key={f.id}
               onClick={() => setFiltro(f.id)}
               className={[
-                'rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
+                'shrink-0 rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
                 filtro === f.id ? 'bg-celeste text-navy-dark' : 'bg-white/10 text-white',
               ].join(' ')}
             >
@@ -204,12 +224,35 @@ export function ImageEditor({
           <button
             onClick={rotar}
             disabled={ocupado}
-            className="rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
+            className="shrink-0 rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
             title="Rotar 90°"
           >
             ↻
           </button>
         </div>
+
+        {/* Ajustes del filtro mágico (brillo y contraste). */}
+        {filtro === 'magico' && (
+          <div className="space-y-2 rounded-xl bg-white/5 p-3">
+            <Deslizador
+              etiqueta="Brillo"
+              valor={ajustes.brillo}
+              onChange={(brillo) => setAjustes((a) => ({ ...a, brillo }))}
+            />
+            <Deslizador
+              etiqueta="Contraste"
+              valor={ajustes.contraste}
+              onChange={(contraste) => setAjustes((a) => ({ ...a, contraste }))}
+            />
+            <button
+              onClick={() => setAjustes(AJUSTES_MAGICO)}
+              className="text-xs font-semibold text-celeste"
+            >
+              Restablecer
+            </button>
+          </div>
+        )}
+
         <button onClick={aplicar} disabled={ocupado} className="btn-primary w-full">
           {ocupado ? 'Procesando…' : 'Aplicar'}
         </button>
@@ -220,4 +263,32 @@ export function ImageEditor({
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n))
+}
+
+/** Deslizador -80..80 para brillo/contraste del filtro mágico. */
+function Deslizador({
+  etiqueta,
+  valor,
+  onChange,
+}: {
+  etiqueta: string
+  valor: number
+  onChange: (v: number) => void
+}) {
+  return (
+    <label className="block">
+      <div className="mb-1 flex justify-between text-xs font-semibold text-white/80">
+        <span>{etiqueta}</span>
+        <span>{valor > 0 ? `+${valor}` : valor}</span>
+      </div>
+      <input
+        type="range"
+        min={-80}
+        max={80}
+        value={valor}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-celeste"
+      />
+    </label>
+  )
 }
