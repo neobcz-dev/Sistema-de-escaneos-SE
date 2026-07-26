@@ -63,7 +63,8 @@ export default function App() {
             files.push(new File([b], `whatsapp-${i}.jpg`, { type: b.type || 'image/jpeg' }))
           }
         }
-        for (const k of await cache.keys()) await cache.delete(k)
+        // NO limpiamos acá: dejamos que se acumulen mientras el cliente comparte
+        // de a una. Se limpian recién cuando las importa (al Continuar).
         window.history.replaceState(null, '', window.location.pathname)
         if (files.length) setCompartidas(files)
       } catch {
@@ -71,6 +72,16 @@ export default function App() {
       }
     })()
   }, [])
+
+  /** Borra la caché de compartidos (tras importarlos a la lista). */
+  async function limpiarCompartidos() {
+    try {
+      const cache = await caches.open('se-compartidos')
+      for (const k of await cache.keys()) await cache.delete(k)
+    } catch {
+      // sin caché disponible
+    }
+  }
 
   function actualizarItem(id: string, cambios: Partial<Comprobante>) {
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...cambios } : it)))
@@ -317,8 +328,9 @@ export default function App() {
               setCliente(c)
               setPaso(1)
               if (compartidas.length) {
-                agregarArchivos(compartidas, true)
+                agregarArchivos(compartidas, true) // con detección de esquinas
                 setCompartidas([])
+                limpiarCompartidos()
               }
             }}
           />

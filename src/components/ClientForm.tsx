@@ -99,7 +99,8 @@ export function ClientForm({ valor, fotosCompartidas = 0, onContinuar }: Props) 
       {fotosCompartidas > 0 && (
         <div className="rounded-xl bg-celeste/15 px-4 py-3 text-sm font-medium text-navy">
           📎 {fotosCompartidas} {fotosCompartidas === 1 ? 'foto recibida' : 'fotos recibidas'} de
-          WhatsApp. Identifíquese y las cargamos automáticamente.
+          WhatsApp. Puede seguir compartiendo más de a una (se van sumando); al continuar las
+          cargamos y recortamos todas.
         </div>
       )}
 

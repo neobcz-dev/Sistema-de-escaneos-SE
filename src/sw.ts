@@ -28,17 +28,19 @@ async function manejarCompartir(request: Request, url: URL): Promise<Response> {
     const form = await request.formData()
     const archivos = form.getAll('foto').filter((f): f is File => f instanceof File)
     const cache = await caches.open(SHARE_CACHE)
-    // Limpiar restos anteriores.
-    for (const k of await cache.keys()) await cache.delete(k)
-    let i = 0
+    // ACUMULAR: como WhatsApp deja compartir de a una foto, agregamos cada
+    // compartida a las anteriores (no borramos). La app las importa todas
+    // juntas y recién ahí limpia la caché.
+    const countRes = await cache.match('shared-count')
+    let count = countRes ? parseInt(await countRes.text(), 10) || 0 : 0
     for (const f of archivos) {
       await cache.put(
-        new Request(`shared-${i}`),
+        new Request(`shared-${count}`),
         new Response(f, { headers: { 'content-type': f.type || 'image/jpeg' } }),
       )
-      i++
+      count++
     }
-    await cache.put(new Request('shared-count'), new Response(String(i)))
+    await cache.put(new Request('shared-count'), new Response(String(count)))
   } catch {
     // Si algo falla, igual redirigimos a la app.
   }
