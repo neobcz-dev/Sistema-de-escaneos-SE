@@ -9,7 +9,7 @@ import { Historial } from './components/Historial'
 import { bloquearAutoActualizacion } from './lib/autoActualizar'
 import { agregarAlHistorial } from './lib/historial'
 import type { Cliente, Comprobante } from './types'
-import { procesarImagen, detectarEsquinas, recortarPerspectiva, editarImagen } from './lib/image'
+import { procesarImagen, detectarEsquinas, recortarPerspectiva, editarImagen, crearMiniatura } from './lib/image'
 import type { ResultadoEdicion } from './components/ImageEditor'
 import { reconocerTexto } from './lib/ocr'
 import { ocrEnServidor } from './lib/ocrServidor'
@@ -267,7 +267,9 @@ export default function App() {
         const r = await subirComprobante(cliente, it, pdf, i + 1, total)
         if (r.ok) {
           actualizarItem(it.id, { subida: 'ok', urlDrive: r.url })
-          // Guardar en el historial local (sobrevive a recargas y cierres).
+          // Guardar en el historial local (sobrevive a recargas y cierres),
+          // con una miniatura de la imagen.
+          const miniatura = await crearMiniatura(it.dataUrl)
           agregarAlHistorial({
             id: `${it.id}-${new Date().getTime()}`,
             fecha: new Date().toISOString(),
@@ -277,7 +279,7 @@ export default function App() {
             proveedor: it.nombreProveedor,
             rucProveedor: it.rucProveedor,
             nroFactura: it.nroFactura,
-            urlDrive: r.url,
+            miniatura,
           })
         } else {
           actualizarItem(it.id, { subida: 'error', errorSubida: r.error })

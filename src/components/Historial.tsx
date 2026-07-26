@@ -1,10 +1,13 @@
 import { useMemo, useState } from 'react'
 import { leerHistorial, limpiarHistorial, type RegistroHistorial } from '../lib/historial'
 import { useAtrasCierra } from '../lib/useAtras'
+import { ZoomViewer } from './ZoomViewer'
 
 interface Props {
   onCerrar: () => void
 }
+
+const MAX_MOSTRAR = 10
 
 /** Convierte la fecha ISO (UTC) a día y hora en zona de Paraguay. */
 function partesPY(iso: string): { dia: string; hora: string } {
@@ -48,7 +51,9 @@ function formatoHora(iso: string): string {
 
 export function Historial({ onCerrar }: Props) {
   useAtrasCierra(onCerrar)
-  const [lista, setLista] = useState<RegistroHistorial[]>(() => leerHistorial())
+  // Mostramos solo los últimos 10 enviados.
+  const [lista, setLista] = useState<RegistroHistorial[]>(() => leerHistorial().slice(0, MAX_MOSTRAR))
+  const [zoom, setZoom] = useState<string | null>(null)
   const grupos = useMemo(() => agrupar(lista), [lista])
 
   function vaciar() {
@@ -82,8 +87,8 @@ export function Historial({ onCerrar }: Props) {
         ) : (
           <div className="mx-auto max-w-2xl space-y-5">
             <p className="text-center text-xs text-anthracite/60">
-              Se guardan en este teléfono. {lista.length}{' '}
-              {lista.length === 1 ? 'comprobante enviado' : 'comprobantes enviados'}.
+              Últimos {lista.length} {lista.length === 1 ? 'comprobante enviado' : 'comprobantes enviados'}{' '}
+              (se guardan en este teléfono).
             </p>
             {grupos.map(([dia, items]) => (
               <div key={dia} className="space-y-2">
@@ -92,29 +97,42 @@ export function Historial({ onCerrar }: Props) {
                 </h3>
                 <ul className="space-y-2">
                   {items.map((r) => (
-                    <li key={r.id} className="card space-y-1 py-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="font-semibold text-navy">
-                          {r.proveedor || r.rucProveedor || 'Proveedor sin dato'}
-                        </span>
-                        <span className="shrink-0 text-xs text-anthracite/50">
-                          {formatoHora(r.fecha)}
-                        </span>
-                      </div>
-                      <div className="text-sm text-anthracite/70">
-                        {r.tipo}
-                        {r.nroFactura ? ` · N° ${r.nroFactura}` : ''}
-                      </div>
-                      {r.urlDrive && (
-                        <a
-                          href={r.urlDrive}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-block text-sm font-semibold text-celeste-dark underline"
+                    <li key={r.id} className="card flex gap-3 py-3">
+                      {r.miniatura ? (
+                        <button
+                          type="button"
+                          onClick={() => setZoom(r.miniatura || null)}
+                          className="h-28 w-24 shrink-0 overflow-hidden rounded-lg ring-1 ring-navy/10"
+                          aria-label="Ampliar"
                         >
-                          Ver en Drive
-                        </a>
+                          <img
+                            src={r.miniatura}
+                            alt="Comprobante"
+                            className="h-full w-full object-cover"
+                          />
+                        </button>
+                      ) : (
+                        <div className="flex h-28 w-24 shrink-0 items-center justify-center rounded-lg bg-navy/5 text-2xl">
+                          📄
+                        </div>
                       )}
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-semibold text-navy">
+                            {r.proveedor || r.rucProveedor || 'Proveedor sin dato'}
+                          </span>
+                          <span className="shrink-0 text-xs text-anthracite/50">
+                            {formatoHora(r.fecha)}
+                          </span>
+                        </div>
+                        <div className="text-sm text-anthracite/70">
+                          {r.tipo}
+                          {r.nroFactura ? ` · N° ${r.nroFactura}` : ''}
+                        </div>
+                        {r.rucProveedor && (
+                          <div className="text-xs text-anthracite/50">RUC {r.rucProveedor}</div>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -123,6 +141,8 @@ export function Historial({ onCerrar }: Props) {
           </div>
         )}
       </div>
+
+      {zoom && <ZoomViewer src={zoom} onCerrar={() => setZoom(null)} />}
     </div>
   )
 }

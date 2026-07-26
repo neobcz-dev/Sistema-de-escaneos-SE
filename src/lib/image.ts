@@ -742,6 +742,23 @@ function warpPerspectiva(
   octx.putImageData(outImg, 0, 0)
 }
 
+/** Miniatura pequeña (dataURL JPEG) para guardar en el historial local. */
+export async function crearMiniatura(src: string, maxDim = 220, quality = 0.6): Promise<string> {
+  try {
+    const img = await loadImage(src)
+    const esc = Math.min(1, maxDim / Math.max(img.width, img.height))
+    const w = Math.max(1, Math.round(img.width * esc))
+    const h = Math.max(1, Math.round(img.height * esc))
+    const cv = document.createElement('canvas')
+    cv.width = w
+    cv.height = h
+    cv.getContext('2d')!.drawImage(img, 0, 0, w, h)
+    return cv.toDataURL('image/jpeg', quality)
+  } catch {
+    return ''
+  }
+}
+
 /** Extrae la parte base64 (sin el prefijo data:) de un data URL. */
 export function dataUrlToBase64(dataUrl: string): string {
   const comma = dataUrl.indexOf(',')

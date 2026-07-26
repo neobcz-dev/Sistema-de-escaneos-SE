@@ -14,10 +14,12 @@ export interface RegistroHistorial {
   rucProveedor: string
   nroFactura: string
   urlDrive?: string
+  miniatura?: string // dataURL JPEG pequeño
 }
 
 const CLAVE = 'se-historial-v1'
-const MAX = 500
+// Guardamos pocos porque cada registro lleva una miniatura (imagen).
+const MAX = 30
 
 export function leerHistorial(): RegistroHistorial[] {
   try {
@@ -31,9 +33,15 @@ export function leerHistorial(): RegistroHistorial[] {
 
 export function agregarAlHistorial(reg: RegistroHistorial): void {
   try {
-    const lista = leerHistorial()
+    let lista = leerHistorial()
     lista.unshift(reg) // el más reciente primero
-    localStorage.setItem(CLAVE, JSON.stringify(lista.slice(0, MAX)))
+    lista = lista.slice(0, MAX)
+    try {
+      localStorage.setItem(CLAVE, JSON.stringify(lista))
+    } catch {
+      // Cuota excedida (por las miniaturas): recortamos más y reintentamos.
+      localStorage.setItem(CLAVE, JSON.stringify(lista.slice(0, 10)))
+    }
   } catch {
     // sin almacenamiento disponible: no es crítico
   }
