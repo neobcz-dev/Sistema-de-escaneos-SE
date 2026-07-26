@@ -48,3 +48,35 @@ export function emailValido(email: string): boolean {
   if (!email.trim()) return true // opcional
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
 }
+
+import type { TipoComprobante } from '../types'
+
+/**
+ * Código de 3 letras por tipo de comprobante y si lleva numeración.
+ * Solo Factura, Nota de crédito y Nota de débito usan el formato NNN-NNN-NNNNNNN.
+ */
+export function codigoTipo(tipo: TipoComprobante): { codigo: string; numerado: boolean } {
+  switch (tipo) {
+    case 'Factura':
+      return { codigo: 'FAT', numerado: true }
+    case 'Nota de crédito':
+      return { codigo: 'NCR', numerado: true }
+    case 'Nota de débito':
+      return { codigo: 'NDB', numerado: true }
+    case 'Boleta / Ticket':
+      return { codigo: 'BOL', numerado: false }
+    case 'Autofactura':
+      return { codigo: 'AUT', numerado: false }
+    case 'Recibo':
+      return { codigo: 'REC', numerado: false }
+    case 'Comprobante de retención':
+      return { codigo: 'RET', numerado: false }
+    default:
+      return { codigo: 'OTR', numerado: false }
+  }
+}
+
+/** Deja solo dígitos y guiones (para RUC y N° de comprobante en el nombre). */
+export function limpiarNumero(s: string): string {
+  return (s || '').replace(/[^0-9-]/g, '')
+}

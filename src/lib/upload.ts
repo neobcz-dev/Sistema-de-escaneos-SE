@@ -2,7 +2,7 @@
 import { APPS_SCRIPT_URL } from '../config'
 import type { Cliente, Comprobante } from '../types'
 import { blobToBase64 } from './image'
-import { selloTiempo, slug } from './util'
+import { codigoTipo, limpiarNumero } from './util'
 
 export interface RespuestaSubida {
   ok: boolean
@@ -11,14 +11,17 @@ export interface RespuestaSubida {
   error?: string
 }
 
-/** Nombre de archivo legible: RUC proveedor + N° comprobante + fecha. */
-function construirNombre(comp: Comprobante): string {
-  const partes = [
-    slug(comp.rucProveedor || 'sin-ruc'),
-    slug(comp.nroFactura || 'sin-nro'),
-    selloTiempo(),
-  ]
-  return `${partes.join('_')}.pdf`
+/**
+ * Nombre del archivo: "RUC_TDOC NNN-NNN-NNNNNNN".
+ * La numeración solo se agrega para Factura (FAT), Nota de crédito (NCR) y
+ * Nota de débito (NDB). Para otros tipos se omite la numeración.
+ */
+function construirNombre(cliente: Cliente, comp: Comprobante): string {
+  const { codigo, numerado } = codigoTipo(cliente.tipo)
+  const ruc = limpiarNumero(comp.rucProveedor) || 'SIN-RUC'
+  const nro = limpiarNumero(comp.nroFactura)
+  if (numerado && nro) return `${ruc}_${codigo} ${nro}.pdf`
+  return `${ruc}_${codigo}.pdf`
 }
 
 /**
@@ -48,7 +51,7 @@ export async function subirComprobante(
       timbrado: comp.timbrado,
     },
     archivo: {
-      nombre: construirNombre(comp),
+      nombre: construirNombre(cliente, comp),
       mimeType: 'application/pdf',
       base64,
     },
