@@ -14,6 +14,30 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   })
 }
 
+/**
+ * Decodifica una imagen aplicando su orientación EXIF (from-image). Así una foto
+ * tomada de costado con el teléfono sale derecha. Para Blob/File usa
+ * createImageBitmap (respeta EXIF de forma explícita en todos los navegadores);
+ * para data URLs (imágenes ya generadas por nosotros) usa el <img> normal.
+ */
+async function decodificarConOrientacion(
+  file: File | Blob | string,
+): Promise<HTMLImageElement | ImageBitmap> {
+  if (typeof file !== 'string' && typeof createImageBitmap === 'function') {
+    try {
+      return await createImageBitmap(file, { imageOrientation: 'from-image' })
+    } catch {
+      // navegador sin soporte: caemos al método <img>
+    }
+  }
+  const src = typeof file === 'string' ? file : URL.createObjectURL(file)
+  try {
+    return await loadImage(src)
+  } finally {
+    if (typeof file !== 'string') URL.revokeObjectURL(src)
+  }
+}
+
 export interface ImagenProcesada {
   blob: Blob
   dataUrl: string
@@ -49,10 +73,10 @@ export async function procesarImagen(
   opciones: OpcionesProceso = {},
 ): Promise<ImagenProcesada> {
   const { maxDim = 2200, quality = 0.8, autoRecorte = false } = opciones
-  const src = typeof file === 'string' ? file : URL.createObjectURL(file)
+  // Decodifica aplicando la ORIENTACIÓN EXIF del teléfono, así una foto tomada
+  // de costado sale derecha automáticamente.
+  const img = await decodificarConOrientacion(file)
   try {
-    const img = await loadImage(src)
-
     // Lienzo de trabajo LIMITADO (no a resolución original) para no agotar la
     // memoria con fotos de celular de 12+ megapíxeles. Todo el procesamiento es
     // liviano en canvas (sin librerías pesadas): nunca congela ni crashea.
@@ -96,7 +120,7 @@ export async function procesarImagen(
     octx.drawImage(fuente, sx, sy, sw, sh, 0, 0, outW, outH)
     return await canvasAImagen(out, quality)
   } finally {
-    if (typeof file !== 'string') URL.revokeObjectURL(src)
+    if (typeof (img as ImageBitmap).close === 'function') (img as ImageBitmap).close()
   }
 }
 
