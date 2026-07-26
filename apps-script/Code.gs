@@ -47,13 +47,6 @@ function doPost(e) {
     var raiz = DriveApp.getFolderById(FOLDER_ID);
     var carpetaCliente = obtenerOCrearSubcarpeta(raiz, nombreCarpetaCliente(cliente));
 
-    // Comparte SU carpeta con el correo del cliente (como lector), para que
-    // pueda ver SOLO sus comprobantes con "Ver en Drive" sin pedir permiso.
-    var correoCliente = String(cliente.email || '').trim();
-    if (correoCliente && correoCliente.indexOf('@') > 0) {
-      try { carpetaCliente.addViewer(correoCliente); } catch (eShare) {}
-    }
-
     // Subcarpeta por FECHA DE ENVIO (la calcula el servidor, no el cliente).
     // Estructura: Cliente (RUC) / AAAA-MM /
     var tz = Session.getScriptTimeZone();
