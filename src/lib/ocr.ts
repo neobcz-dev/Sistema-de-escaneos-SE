@@ -1,5 +1,5 @@
 /** OCR en español ejecutado 100% en el navegador con Tesseract.js. */
-import { createWorker, type Worker } from 'tesseract.js'
+import { createWorker, PSM, type Worker } from 'tesseract.js'
 import type { PalabraOCR, ResultadoOCR } from '../types'
 
 let workerPromise: Promise<Worker> | null = null
@@ -23,6 +23,10 @@ export async function reconocerTexto(
 ): Promise<ResultadoOCR> {
   onProgress?.(0.05)
   const worker = await getWorker()
+  await worker.setParameters({
+    tessedit_pageseg_mode: PSM.SINGLE_BLOCK, // '6': un bloque uniforme de texto (facturas)
+    preserve_interword_spaces: '1',
+  })
   onProgress?.(0.3)
   // Pedimos "blocks" para obtener la jerarquía con recuadros de cada palabra.
   const { data } = await worker.recognize(image, {}, { text: true, blocks: true })

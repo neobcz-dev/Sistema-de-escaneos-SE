@@ -8,8 +8,17 @@ import { InstallButton } from './components/InstallButton'
 import { Historial } from './components/Historial'
 import { bloquearAutoActualizacion } from './lib/autoActualizar'
 import { agregarAlHistorial } from './lib/historial'
-import type { Cliente, Comprobante } from './types'
-import { procesarImagen, detectarEsquinas, recortarPerspectiva, editarImagen, crearMiniatura } from './lib/image'
+import type { Cliente, Comprobante, Punto } from './types'
+import {
+  procesarImagen,
+  detectarEsquinas,
+  detectarEsquinasPorHoja,
+  validarEsquinas,
+  enderezar,
+  recortarPerspectiva,
+  editarImagen,
+  crearMiniatura,
+} from './lib/image'
 import type { ResultadoEdicion } from './components/ImageEditor'
 import { reconocerTexto } from './lib/ocr'
 import { ocrEnServidor } from './lib/ocrServidor'
@@ -87,20 +96,29 @@ export default function App() {
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...cambios } : it)))
   }
 
-  /** Ejecuta OCR (Google Drive; respaldo Tesseract) y autocompleta los datos. */
-  async function ejecutarOCR(id: string, dataUrl: string) {
+  /**
+   * Ejecuta OCR y autocompleta los datos. El motor de Google (Drive) trabaja
+   * sobre la imagen LIMPIA (`ocrUrl`, sin filtro mágico); si su resultado no es
+   * convincente, cae al respaldo Tesseract sobre la vista (`vistaUrl`, con
+   * filtro, que Tesseract sí aprovecha).
+   */
+  async function ejecutarOCR(id: string, vistaUrl: string, ocrUrl?: string) {
     actualizarItem(id, { ocrEstado: 'procesando', ocrProgreso: 0 })
     let texto = ''
     let palabras: Comprobante['ocrPalabras'] = []
 
-    // 1) OCR con el motor de Google (mejor calidad).
-    const serv = await ocrEnServidor(dataUrl)
-    if (serv.ok && typeof serv.texto === 'string') {
-      texto = serv.texto
+    // 1) OCR con el motor de Google sobre la imagen limpia.
+    const serv = await ocrEnServidor(ocrUrl || vistaUrl)
+    const textoServidor = serv.ok && typeof serv.texto === 'string' ? serv.texto : ''
+    // Válido sólo si trae algo de contenido y al menos 3 dígitos seguidos
+    // (RUC/número/timbrado); si no, no confiamos y probamos Tesseract.
+    const servidorValido = textoServidor.trim().length > 30 && /\d{3,}/.test(textoServidor)
+    if (servidorValido) {
+      texto = textoServidor
     } else {
-      // 2) Respaldo: OCR en el navegador (Tesseract).
+      // 2) Respaldo: OCR en el navegador (Tesseract) sobre la vista con filtro.
       try {
-        const r = await reconocerTexto(dataUrl, (p) => actualizarItem(id, { ocrProgreso: p }))
+        const r = await reconocerTexto(vistaUrl, (p) => actualizarItem(id, { ocrProgreso: p }))
         texto = r.texto
         palabras = r.palabras
       } catch {
@@ -160,32 +178,49 @@ export default function App() {
     for (const file of lista) {
       const id = nuevoId()
       try {
-        // Foto completa (base para reeditar) + detección de las 4 esquinas.
+        // Foto completa con la orientación EXIF ya aplicada.
         const original = await procesarImagen(file, { autoRecorte: false })
-        const esquinas = autoDetectar ? await detectarEsquinas(original.dataUrl) : null
+        // Enderezamos (deskew) por la inclinación de las líneas de texto.
+        const enderezada = autoDetectar ? await enderezar(original.dataUrl) : original.dataUrl
 
-        // Aplicamos el filtro "mágico" por defecto (blanquea y realza) y, si
-        // detectamos el comprobante, lo RECORTAMOS y enderezamos solo. La
-        // miniatura muestra ya el resultado; queda corregible en el editor.
+        // Detección de esquinas: primero por densidad de texto; si no sirve,
+        // por hoja clara (componente conectado más grande).
+        let esquinas: Punto[] | null = null
+        if (autoDetectar) {
+          esquinas = await detectarEsquinas(enderezada)
+          if (!esquinas || !validarEsquinas(esquinas)) {
+            esquinas = await detectarEsquinasPorHoja(enderezada)
+          }
+        }
+
+        // Dos imágenes: una LIMPIA para el OCR de Drive (sin filtro mágico) y
+        // la VISTA para el usuario (con filtro mágico). La miniatura muestra ya
+        // el resultado; queda corregible en el editor.
         let vista = original
+        let ocrUrl = enderezada
         let recortado = false
         try {
           if (esquinas) {
-            vista = await recortarPerspectiva(original.dataUrl, esquinas, 'magico')
+            const ocrImg = await recortarPerspectiva(enderezada, esquinas, 'color', 2400, 0.92)
+            ocrUrl = ocrImg.dataUrl
+            vista = await recortarPerspectiva(enderezada, esquinas, 'magico')
             recortado = true
           } else {
-            vista = await editarImagen(original.dataUrl, { filtro: 'magico' })
+            ocrUrl = enderezada
+            vista = await editarImagen(enderezada, { filtro: 'magico' })
           }
         } catch {
           vista = original // si algo falla, dejamos la foto original
+          ocrUrl = enderezada
         }
 
         const nuevo: Comprobante = {
           id,
           nombreArchivo: construirNombre(cliente, id),
-          dataUrl: vista.dataUrl,
-          originalDataUrl: original.dataUrl,
-          baseEdicion: original.dataUrl,
+          dataUrl: vista.dataUrl, // lo que ve el usuario (con filtro mágico)
+          ocrDataUrl: ocrUrl, // imagen limpia para el OCR de Drive
+          originalDataUrl: enderezada,
+          baseEdicion: enderezada,
           esquinas: esquinas ?? undefined,
           recortado,
           blob: vista.blob,
@@ -203,7 +238,7 @@ export default function App() {
           subida: 'pendiente',
         }
         setItems((prev) => [...prev, nuevo])
-        ejecutarOCR(id, vista.dataUrl) // OCR sobre el recorte (menos fondo)
+        ejecutarOCR(id, vista.dataUrl, ocrUrl)
       } catch (e) {
         console.error('No se pudo procesar la imagen', e)
       }

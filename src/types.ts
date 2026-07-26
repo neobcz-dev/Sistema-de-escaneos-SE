@@ -40,6 +40,7 @@ export interface Comprobante {
   id: string
   nombreArchivo: string
   dataUrl: string // JPEG comprimido (preview + base para PDF)
+  ocrDataUrl?: string // imagen limpia para Drive OCR (sin filtro mágico, enderezada, recortada)
   originalDataUrl: string // base sin filtros, para reeditar de forma no destructiva
   baseEdicion?: string // imagen sobre la que se marcaron las esquinas (con rotación aplicada)
   esquinas?: Punto[] // 4 esquinas elegidas/detectadas [tl, tr, br, bl], para recordarlas

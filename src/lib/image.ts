@@ -493,6 +493,14 @@ function detectarHoja(
  * orden [tl, tr, br, bl], o null si no hay un bloque de texto claro.
  */
 export async function detectarEsquinas(src: string): Promise<Punto[] | null> {
+  const esquinas = await detectarEsquinasBruto(src)
+  // Descartamos recuadros con proporción irreal (no parecen un comprobante).
+  if (esquinas && !validarEsquinas(esquinas)) return null
+  return esquinas
+}
+
+/** Detección "cruda" (Web Worker con respaldo en el hilo principal). */
+async function detectarEsquinasBruto(src: string): Promise<Punto[] | null> {
   const worker = obtenerWorker()
   if (worker) {
     return new Promise<Punto[] | null>((resolve) => {
@@ -642,9 +650,27 @@ export async function recortarPerspectiva(
   const octx = out.getContext('2d')!
   warpPerspectiva(fuente, [tl, tr, br, bl], octx, outW, outH)
 
-  aplicarFiltro(octx, outW, outH, filtro, ajustes)
+  // Auto-recorte de los márgenes blancos que quedan tras enderezar/deformar.
+  let lienzo = out
+  let lw = outW
+  let lh = outH
+  let lctx = octx
+  const rec = recortarMargenesBlancos(octx, outW, outH)
+  if (rec.w < outW * 0.95 || rec.h < outH * 0.95) {
+    const cortado = document.createElement('canvas')
+    cortado.width = Math.max(1, rec.w)
+    cortado.height = Math.max(1, rec.h)
+    const cctx = cortado.getContext('2d')!
+    cctx.drawImage(out, rec.x, rec.y, rec.w, rec.h, 0, 0, rec.w, rec.h)
+    lienzo = cortado
+    lw = cortado.width
+    lh = cortado.height
+    lctx = cctx
+  }
 
-  return canvasAImagen(out, quality)
+  aplicarFiltro(lctx, lw, lh, filtro, ajustes)
+
+  return canvasAImagen(lienzo, quality)
 }
 
 function dist(a: Punto, b: Punto): number {
@@ -773,4 +799,202 @@ export function blobToBase64(blob: Blob): Promise<string> {
     reader.onerror = reject
     reader.readAsDataURL(blob)
   })
+}
+
+/**
+ * Endereza (deskew) la imagen: detecta la inclinación de las líneas de texto
+ * por PROYECCIÓN DE PERFILES sobre una miniatura de 200 px, y rota la imagen
+ * ORIGINAL sólo si el ángulo supera 0.5°. Devuelve un dataUrl JPEG (0.92).
+ */
+export async function enderezar(src: string): Promise<string> {
+  try {
+    const img = await loadImage(src)
+    // Miniatura de análisis (lado mayor 200 px).
+    const esc = Math.min(1, 200 / Math.max(img.width, img.height))
+    const tw = Math.max(1, Math.round(img.width * esc))
+    const th = Math.max(1, Math.round(img.height * esc))
+    const mini = document.createElement('canvas')
+    mini.width = tw
+    mini.height = th
+    const mctx = mini.getContext('2d')!
+    mctx.drawImage(img, 0, 0, tw, th)
+    const data = mctx.getImageData(0, 0, tw, th).data
+
+    // Binarizamos la tinta (píxeles oscuros) sobre blanco, para rotar y medir.
+    const n = tw * th
+    const gray = new Float32Array(n)
+    let suma = 0
+    for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+      gray[p] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
+      suma += gray[p]
+    }
+    const media = suma / n
+    const ink = document.createElement('canvas')
+    ink.width = tw
+    ink.height = th
+    const ictx = ink.getContext('2d')!
+    const im = ictx.createImageData(tw, th)
+    for (let p = 0; p < n; p++) {
+      const v = gray[p] < media - 20 ? 0 : 255
+      const j = p * 4
+      im.data[j] = im.data[j + 1] = im.data[j + 2] = v
+      im.data[j + 3] = 255
+    }
+    ictx.putImageData(im, 0, 0)
+
+    // "Nitidez" de las líneas: varianza del perfil de filas (suma de tinta por
+    // fila). El texto derecho da filas muy marcadas -> puntaje alto.
+    const puntaje = (angulo: number): number => {
+      const rc = document.createElement('canvas')
+      rc.width = tw
+      rc.height = th
+      const rctx = rc.getContext('2d')!
+      rctx.fillStyle = '#ffffff'
+      rctx.fillRect(0, 0, tw, th)
+      rctx.save()
+      rctx.translate(tw / 2, th / 2)
+      rctx.rotate((angulo * Math.PI) / 180)
+      rctx.drawImage(ink, -tw / 2, -th / 2)
+      rctx.restore()
+      const dd = rctx.getImageData(0, 0, tw, th).data
+      const filas = new Float32Array(th)
+      for (let y = 0; y < th; y++) {
+        let c = 0
+        for (let x = 0; x < tw; x++) if (dd[(y * tw + x) * 4] < 128) c++
+        filas[y] = c
+      }
+      let s = 0
+      for (let y = 1; y < th; y++) {
+        const df = filas[y] - filas[y - 1]
+        s += df * df
+      }
+      return s
+    }
+
+    let mejorAng = 0
+    let mejorPunt = -1
+    for (let a = -8; a <= 8; a += 0.5) {
+      const p = puntaje(a)
+      if (p > mejorPunt) {
+        mejorPunt = p
+        mejorAng = a
+      }
+    }
+    if (Math.abs(mejorAng) <= 0.5) return src
+
+    // Rotamos la imagen ORIGINAL por el ángulo hallado (lienzo agrandado para
+    // no cortar esquinas; el fondo nuevo queda blanco).
+    const rad = (mejorAng * Math.PI) / 180
+    const cos = Math.abs(Math.cos(rad))
+    const sin = Math.abs(Math.sin(rad))
+    const nw = Math.max(1, Math.round(img.width * cos + img.height * sin))
+    const nh = Math.max(1, Math.round(img.width * sin + img.height * cos))
+    const out = document.createElement('canvas')
+    out.width = nw
+    out.height = nh
+    const octx = out.getContext('2d')!
+    octx.fillStyle = '#ffffff'
+    octx.fillRect(0, 0, nw, nh)
+    octx.translate(nw / 2, nh / 2)
+    octx.rotate(rad)
+    octx.drawImage(img, -img.width / 2, -img.height / 2)
+    return out.toDataURL('image/jpeg', 0.92)
+  } catch {
+    return src
+  }
+}
+
+/**
+ * Recorta los MÁRGENES BLANCOS: descarta las filas/columnas de los bordes donde
+ * más del 98% de los píxeles superan el umbral 240 (casi blanco). Devuelve el
+ * rectángulo útil {x, y, w, h} dentro del contexto.
+ */
+export function recortarMargenesBlancos(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+): { x: number; y: number; w: number; h: number } {
+  const d = ctx.getImageData(0, 0, w, h).data
+  const umbral = 240
+  const blanco = (i: number) => {
+    const g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]
+    return g >= umbral
+  }
+  const filaBlanca = (y: number) => {
+    let b = 0
+    for (let x = 0; x < w; x++) if (blanco((y * w + x) * 4)) b++
+    return b / w > 0.98
+  }
+  const colBlanca = (x: number) => {
+    let b = 0
+    for (let y = 0; y < h; y++) if (blanco((y * w + x) * 4)) b++
+    return b / h > 0.98
+  }
+  let top = 0
+  while (top < h - 1 && filaBlanca(top)) top++
+  let bottom = h - 1
+  while (bottom > top && filaBlanca(bottom)) bottom--
+  let left = 0
+  while (left < w - 1 && colBlanca(left)) left++
+  let right = w - 1
+  while (right > left && colBlanca(right)) right--
+  return { x: left, y: top, w: right - left + 1, h: bottom - top + 1 }
+}
+
+/**
+ * Detecta las 4 esquinas del comprobante usando `componenteHoja()` (el
+ * componente CLARO más grande = la hoja). Devuelve las esquinas del bounding
+ * box NORMALIZADAS (0–1) en orden [tl, tr, br, bl], o null si no hay una hoja
+ * razonable (areaRel 0.15–0.95, fill > 0.45).
+ */
+export async function detectarEsquinasPorHoja(src: string): Promise<Punto[] | null> {
+  try {
+    const img = await loadImage(src)
+    const tope = 1000
+    const esc = Math.min(1, tope / Math.max(img.width, img.height))
+    const w = Math.max(1, Math.round(img.width * esc))
+    const h = Math.max(1, Math.round(img.height * esc))
+    if (w < 40 || h < 40) return null
+    const cv = document.createElement('canvas')
+    cv.width = w
+    cv.height = h
+    const ctx = cv.getContext('2d')!
+    ctx.drawImage(img, 0, 0, w, h)
+
+    const c = componenteHoja(ctx, w, h)
+    if (!c) return null
+    const rw = c.maxx - c.minx + 1
+    const rh = c.maxy - c.miny + 1
+    const areaRel = (rw * rh) / c.n
+    const fill = c.area / (rw * rh)
+    if (areaRel < 0.15 || areaRel > 0.95 || fill < 0.45) return null
+
+    const x0 = c.minx / c.aw
+    const y0 = c.miny / c.ah
+    const x1 = (c.maxx + 1) / c.aw
+    const y1 = (c.maxy + 1) / c.ah
+    return [
+      { x: x0, y: y0 },
+      { x: x1, y: y0 },
+      { x: x1, y: y1 },
+      { x: x0, y: y1 },
+    ]
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Valida un juego de 4 esquinas: la proporción (ancho/alto) del bounding box
+ * debe ser razonable y el recuadro no demasiado chico (coordenadas 0–1).
+ */
+export function validarEsquinas(e: Punto[]): boolean {
+  if (!e || e.length < 4) return false
+  const xs = e.map((p) => p.x)
+  const ys = e.map((p) => p.y)
+  const ancho = Math.max(...xs) - Math.min(...xs)
+  const alto = Math.max(...ys) - Math.min(...ys)
+  if (ancho < 0.15 || alto < 0.1) return false
+  const aspecto = ancho / alto
+  return aspecto >= 0.35 && aspecto <= 2.5
 }
