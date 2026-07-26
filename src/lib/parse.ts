@@ -83,8 +83,8 @@ export function detectarDatos(texto: string, rucCliente: string): DatosDetectado
   const mTimb = t.match(RE_TIMBRADO)
   const timbrado = mTimb ? mTimb[1] : ''
 
-  // RUC del proveedor: primer RUC del texto que NO sea el del cliente.
-  // (El proveedor figura en el encabezado, arriba; la imprenta al pie.)
+  // RUC del proveedor: primer RUC del texto que NO sea el del cliente ni el de
+  // la imprenta (pie de página: "Imp. ... RUC" / "Hab. SET N°").
   const clienteDigitos = soloDigitos(rucCliente)
   const candidatos: { ruc: string; indice: number; d: string }[] = []
   let m: RegExpExecArray | null
@@ -92,8 +92,10 @@ export function detectarDatos(texto: string, rucCliente: string): DatosDetectado
   while ((m = RE_RUC.exec(t)) !== null) {
     candidatos.push({ ruc: `${m[1]}-${m[2]}`, indice: m.index, d: m[1] + m[2] })
   }
+  const RE_IMPRENTA = /imp[.\s]|impreso|imprenta|hab[.\s]|habilit/
   const filtrados = candidatos
     .filter((c) => !(clienteDigitos && c.d === clienteDigitos))
+    .filter((c) => !RE_IMPRENTA.test(t.slice(Math.max(0, c.indice - 35), c.indice).toLowerCase()))
     .sort((a, b) => a.indice - b.indice)
   const rucProveedor = filtrados.length ? filtrados[0].ruc : ''
 
