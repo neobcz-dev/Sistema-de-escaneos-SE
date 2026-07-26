@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { Comprobante, TipoComprobante } from '../types'
 import type { ImagenProcesada } from '../lib/image'
 import { codigoTipo, TIPOS_COMPROBANTE } from '../lib/util'
-import { cargarOpenCV } from '../lib/scanner'
 import { CameraCapture } from './CameraCapture'
 import { ImageEditor } from './ImageEditor'
 
@@ -35,14 +34,6 @@ export function Scanner({
 }: Props) {
   const [camara, setCamara] = useState(false)
   const [editando, setEditando] = useState<Comprobante | null>(null)
-
-  // Precargamos el escáner (OpenCV) poco después de abrir este paso, para que
-  // el enderezado también funcione con fotos de la galería. El pequeño retraso
-  // deja que la pantalla se dibuje antes de la carga (que es intensiva).
-  useEffect(() => {
-    const t = setTimeout(() => cargarOpenCV().catch(() => {}), 400)
-    return () => clearTimeout(t)
-  }, [])
 
   function alSeleccionar(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.files && e.target.files.length) onAgregarArchivos(e.target.files)

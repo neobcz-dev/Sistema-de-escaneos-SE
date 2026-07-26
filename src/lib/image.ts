@@ -67,19 +67,25 @@ export async function procesarImagen(
     }
 
     // 2) Respaldo: detector de hoja por componente conectado (sin enderezar).
+    // Trabajamos sobre un lienzo LIMITADO (no a resolución original) para no
+    // agotar la memoria con fotos de celular de 12+ megapíxeles.
+    const tope = Math.max(maxDim, 2400)
+    const wEsc = Math.min(1, tope / Math.max(img.width, img.height))
+    const bw = Math.max(1, Math.round(img.width * wEsc))
+    const bh = Math.max(1, Math.round(img.height * wEsc))
     const base = document.createElement('canvas')
-    base.width = img.width
-    base.height = img.height
+    base.width = bw
+    base.height = bh
     const bctx = base.getContext('2d')
     if (!bctx) throw new Error('El navegador no soporta procesamiento de imágenes.')
-    bctx.drawImage(img, 0, 0)
+    bctx.drawImage(img, 0, 0, bw, bh)
 
     let sx = 0
     let sy = 0
-    let sw = img.width
-    let sh = img.height
+    let sw = bw
+    let sh = bh
     if (autoRecorte) {
-      const r = detectarHoja(bctx, img.width, img.height)
+      const r = detectarHoja(bctx, bw, bh)
       if (r) {
         sx = r.x
         sy = r.y
