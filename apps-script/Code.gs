@@ -39,7 +39,9 @@ function doPost(e) {
 
     var bytes = Utilities.base64Decode(archivo.base64);
     var mime = archivo.mimeType || 'image/jpeg';
-    var nombre = archivo.nombre || ('comprobante_' + Date.now() + '.jpg');
+    var nombreBase = archivo.nombre || ('comprobante_' + Date.now() + '.jpg');
+    // Si ya existe ese nombre en la carpeta del mes, se agrega un sufijo (2), (3)...
+    var nombre = nombreUnico(carpetaMes, nombreBase);
     var blob = Utilities.newBlob(bytes, mime, nombre);
 
     var file = carpetaMes.createFile(blob);
@@ -88,6 +90,25 @@ function obtenerOCrearSubcarpeta(padre, nombre) {
   var existentes = padre.getFoldersByName(nombre);
   if (existentes.hasNext()) return existentes.next();
   return padre.createFolder(nombre);
+}
+
+/**
+ * Devuelve un nombre libre en la carpeta. Si "archivo.pdf" ya existe,
+ * prueba "archivo (2).pdf", "archivo (3).pdf", etc. Así se guardan ambos
+ * comprobantes sin pisarse.
+ */
+function nombreUnico(carpeta, nombre) {
+  if (!carpeta.getFilesByName(nombre).hasNext()) return nombre;
+  var punto = nombre.lastIndexOf('.');
+  var base = punto >= 0 ? nombre.substring(0, punto) : nombre;
+  var ext = punto >= 0 ? nombre.substring(punto) : '';
+  var i = 2;
+  var candidato = base + ' (' + i + ')' + ext;
+  while (carpeta.getFilesByName(candidato).hasNext()) {
+    i++;
+    candidato = base + ' (' + i + ')' + ext;
+  }
+  return candidato;
 }
 
 function construirDescripcion(data, tz) {
