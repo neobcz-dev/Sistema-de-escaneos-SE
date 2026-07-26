@@ -53,18 +53,28 @@ export function detectarEsquinasDePixeles(
       if (mag[y * w + x] > thr) cuenta[(((y / cell) | 0) * gw) + ((x / cell) | 0)]++
     }
   }
-  let denso: Uint8Array = new Uint8Array(gw * gh)
+  const densoRaw: Uint8Array = new Uint8Array(gw * gh)
   let totalDensas = 0
-  for (let i = 0; i < denso.length; i++) {
+  for (let i = 0; i < densoRaw.length; i++) {
     if (cuenta[i] > cell * cell * 0.15) {
-      denso[i] = 1
+      densoRaw[i] = 1
       totalDensas++
     }
   }
   if (totalDensas < 8) return null // casi sin texto: no arriesgamos
 
+  // Perfiles de densidad por columna y fila (para recortar bordes con
+  // papeles/objetos pegados en los costados).
+  const colDen = new Array<number>(gw).fill(0)
+  const rowDen = new Array<number>(gh).fill(0)
+  for (let y = 0; y < gh; y++) {
+    for (let x = 0; x < gw; x++) {
+      if (densoRaw[y * gw + x]) { colDen[x]++; rowDen[y]++ }
+    }
+  }
+
   // Dilatación (×2): une los renglones del comprobante en un solo bloque.
-  denso = dilatarCeldas(dilatarCeldas(denso, gw, gh), gw, gh)
+  const denso = dilatarCeldas(dilatarCeldas(densoRaw, gw, gh), gw, gh)
 
   // Mayor bloque contiguo de celdas densas = el comprobante.
   const lbl = new Int32Array(gw * gh)
@@ -120,9 +130,33 @@ export function detectarEsquinasDePixeles(
   x1 = Math.min(w, x1 + mx)
   y1 = Math.min(h, y1 + my)
 
-  const bw = (x1 - x0) / w
-  const bh = (y1 - y0) / h
-  if (bw > 0.93 && bh > 0.93) return null // cubre casi toda la foto: sin recorte útil
+  let bw = (x1 - x0) / w
+  let bh = (y1 - y0) / h
+
+  // Si el bloque cubre casi TODA la foto, probablemente hay otros papeles u
+  // objetos pegados en los bordes que se unieron al comprobante. Recortamos por
+  // la MASA CENTRAL de densidad para aislar el comprobante y descartar los
+  // costados sueltos.
+  if (bw > 0.9 && bh > 0.9) {
+    const cb = recorteMasaCentral(colDen, 0.05)
+    const rb = recorteMasaCentral(rowDen, 0.05)
+    if (cb && rb) {
+      x0 = cb[0] * cell
+      y0 = rb[0] * cell
+      x1 = (cb[1] + 1) * cell
+      y1 = (rb[1] + 1) * cell
+      const mx2 = (x1 - x0) * 0.02
+      const my2 = (y1 - y0) * 0.02
+      x0 = Math.max(0, x0 - mx2)
+      y0 = Math.max(0, y0 - my2)
+      x1 = Math.min(w, x1 + mx2)
+      y1 = Math.min(h, y1 + my2)
+      bw = (x1 - x0) / w
+      bh = (y1 - y0) / h
+    }
+  }
+
+  if (bw > 0.93 && bh > 0.93) return null // sigue cubriendo casi todo: sin recorte útil
   if (bw < 0.12 || bh < 0.07) return null // demasiado chico para ser el comprobante
 
   // 4 esquinas del recuadro (ejes alineados; el usuario ajusta si hay sesgo).
@@ -136,6 +170,32 @@ export function detectarEsquinasDePixeles(
     { x: nx1, y: ny1 },
     { x: nx0, y: ny1 },
   ]
+}
+
+/**
+ * Recorta un perfil de densidad quitando la fracción `p` de "masa" (densidad
+ * total) de cada extremo. Así descarta bordes poco densos (papeles/objetos
+ * chicos a los costados) y deja el núcleo denso (el comprobante). Devuelve
+ * [inicio, fin] en índices del perfil, o null.
+ */
+function recorteMasaCentral(perfil: number[], p: number): [number, number] | null {
+  let total = 0
+  for (const v of perfil) total += v
+  if (total <= 0) return null
+  const lim = total * p
+  let acc = 0
+  let inicio = 0
+  for (let i = 0; i < perfil.length; i++) {
+    acc += perfil[i]
+    if (acc >= lim) { inicio = i; break }
+  }
+  acc = 0
+  let fin = perfil.length - 1
+  for (let i = perfil.length - 1; i >= 0; i--) {
+    acc += perfil[i]
+    if (acc >= lim) { fin = i; break }
+  }
+  return inicio <= fin ? [inicio, fin] : null
 }
 
 /** Dilatación morfológica en la rejilla de celdas (crece 1 celda alrededor). */
