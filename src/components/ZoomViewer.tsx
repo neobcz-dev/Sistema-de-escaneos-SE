@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { useAtrasCierra } from '../lib/useAtras'
 
 interface Props {
   src: string
@@ -11,6 +12,7 @@ interface Props {
  * el RUC y el número a mano.
  */
 export function ZoomViewer({ src, onCerrar }: Props) {
+  useAtrasCierra(onCerrar)
   const [escala, setEscala] = useState(1)
   const [pos, setPos] = useState({ x: 0, y: 0 })
   const punteros = useRef<Map<number, { x: number; y: number }>>(new Map())

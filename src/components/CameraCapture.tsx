@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useAtrasCierra } from '../lib/useAtras'
 
 interface Props {
   onCapturar: (blob: Blob) => void
@@ -10,6 +11,7 @@ interface Props {
  * comprobante se hacen al procesar cada foto (liviano, sin librerías pesadas).
  */
 export function CameraCapture({ onCapturar, onCerrar }: Props) {
+  useAtrasCierra(onCerrar)
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const [error, setError] = useState('')

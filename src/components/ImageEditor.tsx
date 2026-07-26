@@ -7,6 +7,7 @@ import {
   type ImagenProcesada,
 } from '../lib/image'
 import type { Punto } from '../types'
+import { useAtrasCierra } from '../lib/useAtras'
 
 const FILTROS: { id: Filtro; nombre: string; css?: string }[] = [
   { id: 'color', nombre: 'Color' },
@@ -48,6 +49,7 @@ export function ImageEditor({
   onAplicar,
   onCancelar,
 }: Props) {
+  useAtrasCierra(onCancelar)
   const [preview, setPreview] = useState(baseInicial ?? src)
   const [esquinas, setEsquinas] = useState<Punto[]>(esquinasIniciales ?? ESQUINAS_INICIAL)
   const [filtro, setFiltro] = useState<Filtro>('color')
