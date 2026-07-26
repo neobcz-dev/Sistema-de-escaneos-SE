@@ -1,8 +1,14 @@
 import { useState } from 'react'
 import type { Cliente, TipoComprobante } from '../types'
-import { emailValido, rucValido, TIPOS_COMPROBANTE } from '../lib/util'
+import { calcularDV, emailValido, rucCompleto, TIPOS_COMPROBANTE } from '../lib/util'
 
 const TIPOS = TIPOS_COMPROBANTE
+
+/** Extrae la base (sin DV) de un RUC guardado como "80012345-6". */
+function extraerBase(ruc: string): string {
+  const g = (ruc || '').lastIndexOf('-')
+  return g > 0 ? ruc.slice(0, g) : ruc || ''
+}
 
 interface Props {
   valor: Cliente
@@ -12,11 +18,16 @@ interface Props {
 
 export function ClientForm({ valor, fotosCompartidas = 0, onContinuar }: Props) {
   const [cliente, setCliente] = useState<Cliente>(valor)
+  const [rucBase, setRucBase] = useState(() => extraerBase(valor.ruc))
   const [tocado, setTocado] = useState(false)
+
+  const baseLimpia = rucBase.trim()
+  const dv = baseLimpia ? calcularDV(baseLimpia) : null
+  const rucValidoBase = /^[0-9A-Za-z]{3,12}$/.test(baseLimpia)
 
   const errores = {
     nombre: cliente.nombre.trim().length < 2 ? 'Ingrese su nombre o razón social.' : '',
-    ruc: !rucValido(cliente.ruc) ? 'Ingrese un RUC o C.I. válido.' : '',
+    ruc: !rucValidoBase ? 'Ingrese su RUC o cédula (sin el dígito verificador).' : '',
     email: !emailValido(cliente.email) ? 'El correo no es válido.' : '',
   }
   const valido = !errores.nombre && !errores.ruc && !errores.email
@@ -28,7 +39,13 @@ export function ClientForm({ valor, fotosCompartidas = 0, onContinuar }: Props) 
   function enviar(e: React.FormEvent) {
     e.preventDefault()
     setTocado(true)
-    if (valido) onContinuar({ ...cliente, nombre: cliente.nombre.trim(), ruc: cliente.ruc.trim() })
+    if (valido) {
+      onContinuar({
+        ...cliente,
+        nombre: cliente.nombre.trim(),
+        ruc: rucCompleto(baseLimpia), // guarda "base-DV"
+      })
+    }
   }
 
   return (
@@ -66,16 +83,31 @@ export function ClientForm({ valor, fotosCompartidas = 0, onContinuar }: Props) 
         <div>
           <label htmlFor="ruc" className="field-label">
             RUC o C.I. <span className="text-celeste-dark">*</span>
+            <span className="font-normal text-anthracite/50"> (sin dígito verificador)</span>
           </label>
-          <input
-            id="ruc"
-            className="field-input"
-            inputMode="numeric"
-            placeholder="Ej.: 80012345-6"
-            value={cliente.ruc}
-            onChange={(e) => set('ruc', e.target.value)}
-          />
-          {tocado && errores.ruc && <p className="mt-1 text-sm text-red-600">{errores.ruc}</p>}
+          <div className="flex items-stretch">
+            <input
+              id="ruc"
+              className="field-input rounded-r-none"
+              inputMode="numeric"
+              placeholder="Ej.: 80012345"
+              value={rucBase}
+              onChange={(e) => setRucBase(e.target.value)}
+            />
+            <span
+              className="flex min-w-[3.2rem] items-center justify-center rounded-r-xl border border-l-0 border-anthracite/15 bg-mist px-2 font-bold text-navy"
+              title="Dígito verificador calculado automáticamente"
+            >
+              {dv !== null && rucValidoBase ? `-${dv}` : '-?'}
+            </span>
+          </div>
+          {rucValidoBase && dv !== null ? (
+            <p className="mt-1 text-xs text-emerald-600">
+              RUC completo: <strong>{baseLimpia}-{dv}</strong>
+            </p>
+          ) : (
+            tocado && errores.ruc && <p className="mt-1 text-sm text-red-600">{errores.ruc}</p>
+          )}
         </div>
         <div>
           <label htmlFor="email" className="field-label">

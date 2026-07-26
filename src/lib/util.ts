@@ -49,6 +49,37 @@ export function emailValido(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
 }
 
+/**
+ * Calcula el dígito verificador (DV) del RUC/cédula de Paraguay (módulo 11,
+ * base máxima 11). Admite entradas alfanuméricas: las letras se reemplazan por
+ * su código ASCII antes del cálculo (igual que la función oficial de la SET).
+ */
+export function calcularDV(numero: string, baseMax = 11): number {
+  let numeroAl = ''
+  for (const ch of (numero || '').trim()) {
+    const c = ch.toUpperCase()
+    const code = c.charCodeAt(0)
+    if (code >= 48 && code <= 57) numeroAl += c // dígito 0-9
+    else numeroAl += String(code) // letra -> su ASCII
+  }
+  let k = 2
+  let total = 0
+  for (let i = numeroAl.length - 1; i >= 0; i--) {
+    if (k > baseMax) k = 2
+    total += Number(numeroAl[i]) * k
+    k++
+  }
+  const resto = total % 11
+  return resto > 1 ? 11 - resto : 0
+}
+
+/** RUC completo a partir de la base (sin DV): "80012345" -> "80012345-6". */
+export function rucCompleto(base: string): string {
+  const b = (base || '').trim()
+  if (!b) return ''
+  return `${b}-${calcularDV(b)}`
+}
+
 import type { TipoComprobante } from '../types'
 
 /** Lista de tipos de comprobante (para los selectores). */

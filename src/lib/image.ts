@@ -195,17 +195,18 @@ function filtroDocumento(ctx: CanvasRenderingContext2D, w: number, h: number): v
 }
 
 /**
- * Detecta la hoja del comprobante (región clara sobre fondo más oscuro) y
- * devuelve su recuadro en píxeles. Conservador: si no hay una hoja clara
- * distinguible, devuelve null (no recorta).
+ * Detecta la hoja del comprobante: toma el COMPONENTE CLARO CONECTADO MÁS
+ * GRANDE (la hoja es un bloque claro y contiguo; el fondo —teclado, mesa—
+ * aporta manchas claras pequeñas y dispersas que se descartan).
+ * Devuelve el recuadro en píxeles de la imagen original, o null si no
+ * distingue una hoja razonable (entonces no se recorta).
  */
 function detectarHoja(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
 ): { x: number; y: number; w: number; h: number } | null {
-  // Analizamos en baja resolución para velocidad.
-  const escala = Math.min(1, 700 / Math.max(w, h))
+  const escala = Math.min(1, 600 / Math.max(w, h))
   const aw = Math.max(1, Math.round(w * escala))
   const ah = Math.max(1, Math.round(h * escala))
   const tmp = document.createElement('canvas')
@@ -224,8 +225,7 @@ function detectarHoja(
     hist[g]++
   }
 
-  // Umbral de Otsu para separar hoja (claro) del fondo (oscuro).
-  const total = n
+  // Umbral de Otsu (separa hoja clara de fondo oscuro).
   let sum = 0
   for (let i = 0; i < 256; i++) sum += i * hist[i]
   let sumB = 0
@@ -235,7 +235,7 @@ function detectarHoja(
   for (let i = 0; i < 256; i++) {
     wB += hist[i]
     if (wB === 0) continue
-    const wF = total - wB
+    const wF = n - wB
     if (wF === 0) break
     sumB += i * hist[i]
     const mB = sumB / wB
@@ -247,45 +247,63 @@ function detectarHoja(
     }
   }
 
-  // Perfiles de filas/columnas con píxeles "claros" (hoja).
-  const filas = new Int32Array(ah)
-  const cols = new Int32Array(aw)
-  let claros = 0
-  for (let y = 0; y < ah; y++) {
-    for (let x = 0; x < aw; x++) {
-      if (gray[y * aw + x] > umbral) {
-        filas[y]++
-        cols[x]++
-        claros++
-      }
+  // Máscara clara + 2 erosiones (rompe puentes finos y borra manchitas).
+  let mask: Uint8Array = new Uint8Array(n)
+  for (let i = 0; i < n; i++) mask[i] = gray[i] > umbral ? 1 : 0
+  mask = erosionar(erosionar(mask, aw, ah), aw, ah)
+
+  // Componentes conectados (BFS 4-conex): nos quedamos con el mayor.
+  const lbl = new Int32Array(n)
+  const pila = new Int32Array(n)
+  let etiqueta = 0
+  let mejorArea = 0
+  let bb: { minx: number; miny: number; maxx: number; maxy: number; area: number } | null = null
+  for (let s = 0; s < n; s++) {
+    if (!mask[s] || lbl[s]) continue
+    etiqueta++
+    let sp = 0
+    pila[sp++] = s
+    lbl[s] = etiqueta
+    let area = 0
+    let minx = aw
+    let miny = ah
+    let maxx = 0
+    let maxy = 0
+    while (sp) {
+      const p = pila[--sp]
+      area++
+      const px = p % aw
+      const py = (p / aw) | 0
+      if (px < minx) minx = px
+      if (px > maxx) maxx = px
+      if (py < miny) miny = py
+      if (py > maxy) maxy = py
+      if (px > 0 && mask[p - 1] && !lbl[p - 1]) { lbl[p - 1] = etiqueta; pila[sp++] = p - 1 }
+      if (px < aw - 1 && mask[p + 1] && !lbl[p + 1]) { lbl[p + 1] = etiqueta; pila[sp++] = p + 1 }
+      if (py > 0 && mask[p - aw] && !lbl[p - aw]) { lbl[p - aw] = etiqueta; pila[sp++] = p - aw }
+      if (py < ah - 1 && mask[p + aw] && !lbl[p + aw]) { lbl[p + aw] = etiqueta; pila[sp++] = p + aw }
+    }
+    if (area > mejorArea) {
+      mejorArea = area
+      bb = { minx, miny, maxx, maxy, area }
     }
   }
-  if (claros < n * 0.1) return null // casi nada de hoja detectable
+  if (!bb) return null
 
-  const limFila = Math.max(1, Math.floor(aw * 0.15))
-  const limCol = Math.max(1, Math.floor(ah * 0.15))
-  let top = 0
-  while (top < ah && filas[top] < limFila) top++
-  let bottom = ah - 1
-  while (bottom > top && filas[bottom] < limFila) bottom--
-  let left = 0
-  while (left < aw && cols[left] < limCol) left++
-  let right = aw - 1
-  while (right > left && cols[right] < limCol) right--
-
-  const rw = right - left + 1
-  const rh = bottom - top + 1
+  const rw = bb.maxx - bb.minx + 1
+  const rh = bb.maxy - bb.miny + 1
   const areaRel = (rw * rh) / n
-  // Solo recortamos si la región es sensata (ni casi todo, ni casi nada).
-  if (areaRel < 0.2 || areaRel > 0.97) return null
+  const fill = bb.area / (rw * rh)
+  // Debe ser una región sensata y bien "rellena" (una hoja, no un scatter).
+  if (areaRel < 0.15 || areaRel > 0.95 || fill < 0.45) return null
 
-  // Margen y mapeo a resolución original.
-  const mx = Math.round(rw * 0.02)
-  const my = Math.round(rh * 0.02)
-  const x0 = Math.max(0, left - mx)
-  const y0 = Math.max(0, top - my)
-  const x1 = Math.min(aw - 1, right + mx)
-  const y1 = Math.min(ah - 1, bottom + my)
+  // Margen (2% + compensación de la erosión) y mapeo a resolución original.
+  const mx = Math.round(rw * 0.02) + 2
+  const my = Math.round(rh * 0.02) + 2
+  const x0 = Math.max(0, bb.minx - mx)
+  const y0 = Math.max(0, bb.miny - my)
+  const x1 = Math.min(aw - 1, bb.maxx + mx)
+  const y1 = Math.min(ah - 1, bb.maxy + my)
   const inv = 1 / escala
   return {
     x: Math.round(x0 * inv),
@@ -293,6 +311,24 @@ function detectarHoja(
     w: Math.round((x1 - x0 + 1) * inv),
     h: Math.round((y1 - y0 + 1) * inv),
   }
+}
+
+/** Erosión morfológica 3×3 (mantiene el píxel solo si todos sus vecinos son 1). */
+function erosionar(m: Uint8Array, w: number, h: number): Uint8Array {
+  const o = new Uint8Array(m.length)
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const idx = y * w + x
+      if (!m[idx]) continue
+      if (
+        m[idx - 1] && m[idx + 1] && m[idx - w] && m[idx + w] &&
+        m[idx - w - 1] && m[idx - w + 1] && m[idx + w - 1] && m[idx + w + 1]
+      ) {
+        o[idx] = 1
+      }
+    }
+  }
+  return o
 }
 
 /** Extrae la parte base64 (sin el prefijo data:) de un data URL. */

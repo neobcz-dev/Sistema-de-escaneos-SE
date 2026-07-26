@@ -82,7 +82,7 @@ export default function App() {
       .catch(() => actualizarItem(id, { ocrEstado: 'error', ocrProgreso: 1 }))
   }
 
-  async function agregarArchivos(files: FileList | File[], autoRecorte = false) {
+  async function agregarArchivos(files: FileList | File[], autoRecorte = true) {
     const lista = Array.from(files).filter((f) => f.type.startsWith('image/'))
     for (const file of lista) {
       const id = nuevoId()
