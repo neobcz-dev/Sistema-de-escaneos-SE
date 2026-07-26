@@ -1,11 +1,16 @@
-import { useRef } from 'react'
+import { useState } from 'react'
 import type { Comprobante } from '../types'
+import type { ImagenProcesada } from '../lib/image'
+import { CameraCapture } from './CameraCapture'
+import { ImageEditor } from './ImageEditor'
 
 interface Props {
   items: Comprobante[]
   onAgregarArchivos: (files: FileList | File[]) => void
   onEliminar: (id: string) => void
   onEditarOCR: (id: string, texto: string) => void
+  onEditarCampo: (id: string, campo: 'rucProveedor' | 'nroFactura', valor: string) => void
+  onReemplazarImagen: (id: string, img: ImagenProcesada) => void
   onAtras: () => void
   onContinuar: () => void
 }
@@ -15,17 +20,17 @@ export function Scanner({
   onAgregarArchivos,
   onEliminar,
   onEditarOCR,
+  onEditarCampo,
+  onReemplazarImagen,
   onAtras,
   onContinuar,
 }: Props) {
-  const camaraRef = useRef<HTMLInputElement>(null)
-  const galeriaRef = useRef<HTMLInputElement>(null)
+  const [camara, setCamara] = useState(false)
+  const [editando, setEditando] = useState<Comprobante | null>(null)
 
   function alSeleccionar(e: React.ChangeEvent<HTMLInputElement>) {
-    if (e.target.files && e.target.files.length) {
-      onAgregarArchivos(e.target.files)
-    }
-    e.target.value = '' // permite volver a elegir el mismo archivo
+    if (e.target.files && e.target.files.length) onAgregarArchivos(e.target.files)
+    e.target.value = ''
   }
 
   return (
@@ -34,44 +39,21 @@ export function Scanner({
         <div>
           <h2 className="text-xl font-bold text-navy">Capture sus comprobantes</h2>
           <p className="mt-1 text-sm text-anthracite/70">
-            Tome una foto de cada comprobante o elíjalos desde su galería. Puede
-            agregar varios. Procuramos leer el texto automáticamente.
+            Con la cámara puede sacar <span className="font-semibold">varias fotos seguidas</span>{' '}
+            sin reabrirla. Leemos el texto y detectamos el RUC del proveedor y el N° de
+            comprobante automáticamente.
           </p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => camaraRef.current?.click()}
-          >
-            <IconCamara /> Tomar foto
+          <button type="button" className="btn-primary" onClick={() => setCamara(true)}>
+            <IconCamara /> Escanear con cámara
           </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() => galeriaRef.current?.click()}
-          >
+          <label className="btn-ghost cursor-pointer">
             <IconGaleria /> Elegir de la galería
-          </button>
+            <input type="file" accept="image/*" multiple className="hidden" onChange={alSeleccionar} />
+          </label>
         </div>
-
-        <input
-          ref={camaraRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={alSeleccionar}
-        />
-        <input
-          ref={galeriaRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={alSeleccionar}
-        />
       </div>
 
       {items.length === 0 ? (
@@ -82,14 +64,21 @@ export function Scanner({
         </div>
       ) : (
         <ul className="space-y-4">
-          {items.map((c) => (
-            <li key={c.id} className="card">
+          {items.map((c, i) => (
+            <li key={c.id} className="card space-y-3">
               <div className="flex gap-4">
-                <img
-                  src={c.dataUrl}
-                  alt="Comprobante"
-                  className="h-28 w-24 shrink-0 rounded-lg object-cover ring-1 ring-navy/10"
-                />
+                <button
+                  type="button"
+                  onClick={() => setEditando(c)}
+                  className="group relative h-28 w-24 shrink-0 overflow-hidden rounded-lg ring-1 ring-navy/10"
+                  aria-label="Editar imagen"
+                >
+                  <img src={c.dataUrl} alt={`Comprobante ${i + 1}`} className="h-full w-full object-cover" />
+                  <span className="absolute inset-x-0 bottom-0 bg-navy/70 py-0.5 text-center text-[10px] font-semibold text-white">
+                    ✂️ Ajustar
+                  </span>
+                </button>
+
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <EstadoOCRBadge comp={c} />
@@ -97,25 +86,47 @@ export function Scanner({
                       type="button"
                       onClick={() => onEliminar(c.id)}
                       className="rounded-lg px-2 py-1 text-sm font-semibold text-red-600 hover:bg-red-50"
-                      aria-label="Eliminar comprobante"
                     >
                       Eliminar
                     </button>
                   </div>
 
-                  <label className="field-label mt-3 text-xs">Texto detectado (editable)</label>
-                  <textarea
-                    className="field-input min-h-[80px] resize-y text-sm"
-                    value={c.ocrTexto}
-                    placeholder={
-                      c.ocrEstado === 'procesando'
-                        ? 'Leyendo el comprobante…'
-                        : 'Sin texto. Puede escribir una referencia.'
-                    }
-                    onChange={(e) => onEditarOCR(c.id, e.target.value)}
-                  />
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="field-label text-xs">RUC proveedor</label>
+                      <input
+                        className="field-input py-2 text-sm"
+                        placeholder={c.ocrEstado === 'procesando' ? '…' : 'No detectado'}
+                        value={c.rucProveedor}
+                        onChange={(e) => onEditarCampo(c.id, 'rucProveedor', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="field-label text-xs">N° comprobante</label>
+                      <input
+                        className="field-input py-2 text-sm"
+                        placeholder={c.ocrEstado === 'procesando' ? '…' : 'No detectado'}
+                        value={c.nroFactura}
+                        onChange={(e) => onEditarCampo(c.id, 'nroFactura', e.target.value)}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
+
+              <details className="text-sm">
+                <summary className="cursor-pointer font-semibold text-navy/70">
+                  Ver / editar texto detectado
+                </summary>
+                <textarea
+                  className="field-input mt-2 min-h-[80px] resize-y text-sm"
+                  value={c.ocrTexto}
+                  placeholder={
+                    c.ocrEstado === 'procesando' ? 'Leyendo el comprobante…' : 'Sin texto detectado.'
+                  }
+                  onChange={(e) => onEditarOCR(c.id, e.target.value)}
+                />
+              </details>
             </li>
           ))}
         </ul>
@@ -134,6 +145,24 @@ export function Scanner({
           Continuar ({items.length})
         </button>
       </div>
+
+      {camara && (
+        <CameraCapture
+          onCapturar={(blob) => onAgregarArchivos([new File([blob], 'captura.jpg', { type: 'image/jpeg' })])}
+          onCerrar={() => setCamara(false)}
+        />
+      )}
+
+      {editando && (
+        <ImageEditor
+          src={editando.dataUrl}
+          onCancelar={() => setEditando(null)}
+          onAplicar={(img) => {
+            onReemplazarImagen(editando.id, img)
+            setEditando(null)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -150,7 +179,7 @@ function EstadoOCRBadge({ comp }: { comp: Comprobante }) {
   if (comp.ocrEstado === 'listo') {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-        ✓ Texto detectado
+        ✓ Leído
       </span>
     )
   }
@@ -162,9 +191,7 @@ function EstadoOCRBadge({ comp }: { comp: Comprobante }) {
     )
   }
   return (
-    <span className="rounded-full bg-navy/5 px-3 py-1 text-xs font-semibold text-navy/60">
-      En cola…
-    </span>
+    <span className="rounded-full bg-navy/5 px-3 py-1 text-xs font-semibold text-navy/60">En cola…</span>
   )
 }
 

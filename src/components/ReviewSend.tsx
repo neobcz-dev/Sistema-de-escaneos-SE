@@ -87,10 +87,15 @@ export function ReviewSend({
             />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-navy">
-                Comprobante {i + 1}
+                {c.rucProveedor || c.nroFactura
+                  ? [c.rucProveedor && `RUC ${c.rucProveedor}`, c.nroFactura]
+                      .filter(Boolean)
+                      .join(' · ')
+                  : `Comprobante ${i + 1}`}
               </p>
               <p className="truncate text-xs text-anthracite/60">
-                {c.ocrTexto ? c.ocrTexto.replace(/\s+/g, ' ').slice(0, 60) : 'Sin texto detectado'}
+                📄 PDF buscable ·{' '}
+                {c.ocrTexto ? c.ocrTexto.replace(/\s+/g, ' ').slice(0, 40) : 'sin texto'}
               </p>
             </div>
             <EstadoSubidaBadge comp={c} />

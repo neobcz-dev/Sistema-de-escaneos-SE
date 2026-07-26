@@ -86,13 +86,19 @@ function obtenerOCrearSubcarpeta(padre, nombre) {
 
 function construirDescripcion(data) {
   var c = data.cliente || {};
+  var d = data.detectado || {};
   var lineas = [
     'Cliente: ' + (c.nombre || ''),
-    'RUC/CI: ' + (c.ruc || ''),
+    'RUC/CI cliente: ' + (c.ruc || ''),
     'Correo: ' + (c.email || ''),
     'Tipo: ' + (c.tipo || ''),
     'Periodo: ' + (c.periodo || ''),
     'Nota: ' + (c.nota || ''),
+    '',
+    '--- Datos detectados ---',
+    'RUC proveedor: ' + (d.rucProveedor || '(no detectado)'),
+    'N° comprobante: ' + (d.nroFactura || '(no detectado)'),
+    'Timbrado: ' + (d.timbrado || '(no detectado)'),
     'Enviado: ' + (data.enviadoEn || ''),
     '',
     '--- Texto detectado (OCR) ---',
