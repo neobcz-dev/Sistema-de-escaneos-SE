@@ -6,11 +6,19 @@ import { VitePWA } from 'vite-plugin-pwa'
 // En desarrollo local usamos la raíz "/".
 const base = process.env.NODE_ENV === 'production' ? '/Sistema-de-escaneos-SE/' : '/'
 
-// Sello de versión (fecha/hora de compilación) para saber si la app está al día.
-const version = new Date()
-  .toISOString()
-  .slice(2, 16)
-  .replace('T', ' ')
+// Sello de versión (fecha/hora de compilación) en hora de Paraguay, para saber
+// de un vistazo si la app está al día.
+const version = new Intl.DateTimeFormat('es-PY', {
+  timeZone: 'America/Asuncion',
+  day: '2-digit',
+  month: '2-digit',
+  year: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+})
+  .format(new Date())
+  .replace(',', '')
 
 export default defineConfig({
   base,
