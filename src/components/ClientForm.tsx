@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Cliente, TipoComprobante } from '../types'
 import { calcularDV, emailValido, rucCompleto, TIPOS_COMPROBANTE } from '../lib/util'
 import { consultarRucSet, noConfigurada } from '../lib/set'
+import { BuscadorNombre } from './BuscadorNombre'
 
 const TIPOS = TIPOS_COMPROBANTE
 
@@ -21,6 +22,7 @@ export function ClientForm({ valor, fotosCompartidas = 0, onContinuar }: Props) 
   const [cliente, setCliente] = useState<Cliente>(valor)
   const [rucBase, setRucBase] = useState(() => extraerBase(valor.ruc))
   const [tocado, setTocado] = useState(false)
+  const [buscarPorNombre, setBuscarPorNombre] = useState(false)
 
   const baseLimpia = rucBase.trim()
   const dv = baseLimpia ? calcularDV(baseLimpia) : null
@@ -139,6 +141,29 @@ export function ClientForm({ valor, fotosCompartidas = 0, onContinuar }: Props) 
         )}
         {consultaSet.estado === 'ok' && consultaSet.razon && (
           <p className="mt-1 text-xs font-medium text-emerald-700">✓ {consultaSet.razon}</p>
+        )}
+
+        {/* Buscar por nombre si no sabe el RUC. */}
+        {!buscarPorNombre ? (
+          <button
+            type="button"
+            onClick={() => setBuscarPorNombre(true)}
+            className="mt-2 text-xs font-semibold text-celeste-dark underline"
+          >
+            ¿No sabe su RUC? Buscar por nombre
+          </button>
+        ) : (
+          <div className="mt-2">
+            <BuscadorNombre
+              titulo="Buscar su RUC por nombre"
+              onCerrar={() => setBuscarPorNombre(false)}
+              onElegir={(o) => {
+                setRucBase(o.ruc) // dispara la verificación por RUC (fija y bloquea el nombre)
+                setCliente((c) => ({ ...c, nombre: o.razonSocial })) // ya sabemos el nombre
+                setBuscarPorNombre(false)
+              }}
+            />
+          </div>
         )}
       </div>
 

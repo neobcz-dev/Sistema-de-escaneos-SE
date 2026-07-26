@@ -5,6 +5,7 @@ import { analizarRuc } from '../lib/ruc'
 import { CameraCapture } from './CameraCapture'
 import { ImageEditor, type ResultadoEdicion } from './ImageEditor'
 import { ZoomViewer } from './ZoomViewer'
+import { BuscadorNombre } from './BuscadorNombre'
 
 interface Props {
   items: Comprobante[]
@@ -38,6 +39,7 @@ export function Scanner({
   const [camara, setCamara] = useState(false)
   const [editando, setEditando] = useState<Comprobante | null>(null)
   const [zoom, setZoom] = useState<Comprobante | null>(null)
+  const [buscarProvId, setBuscarProvId] = useState<string | null>(null)
 
   function alSeleccionar(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.files && e.target.files.length) onAgregarArchivos(e.target.files)
@@ -171,6 +173,27 @@ export function Scanner({
                       onBuscarProveedor(c.id, ruc)
                     }}
                   />
+                  {buscarProvId === c.id ? (
+                    <div className="mt-2">
+                      <BuscadorNombre
+                        titulo="Buscar proveedor por nombre"
+                        onCerrar={() => setBuscarProvId(null)}
+                        onElegir={(o) => {
+                          onEditarCampo(c.id, 'rucProveedor', `${o.ruc}-${o.dv}`)
+                          onEditarCampo(c.id, 'nombreProveedor', o.razonSocial)
+                          setBuscarProvId(null)
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setBuscarProvId(c.id)}
+                      className="mt-1 text-xs font-semibold text-celeste-dark underline"
+                    >
+                      Buscar proveedor por nombre
+                    </button>
+                  )}
                 </div>
                 <div>
                   <label className="field-label">N° comprobante</label>

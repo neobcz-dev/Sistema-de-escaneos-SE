@@ -27,6 +27,11 @@ function doPost(e) {
       return jsonResponse(consultarRuc(data.ruc, data.dv));
     }
 
+    // Busqueda de contribuyentes por NOMBRE (devuelve varias coincidencias).
+    if (data.accion === 'buscarNombre') {
+      return jsonResponse(buscarNombre(data.texto));
+    }
+
     // OCR con el motor de Google (Drive) — mucho mejor que el del navegador.
     if (data.accion === 'ocr') {
       return jsonResponse(ocrImagen(data.base64, data.mimeType));
@@ -161,6 +166,80 @@ function primerValor(obj, claves) {
     if (typeof v === 'string' && v) return v;
   }
   return '';
+}
+
+/**
+ * Busca contribuyentes por nombre/razon social en TuRUC (del lado servidor,
+ * sin CORS). Devuelve { ok, opciones: [{ ruc(base), dv, razonSocial }] }.
+ */
+function buscarNombre(texto) {
+  var q = (texto || '').toString().trim();
+  if (q.length < 3) return { ok: true, opciones: [] };
+  try {
+    var url = 'https://turuc.com.py/api/contribuyente/search?search=' +
+      encodeURIComponent(q) + '&page=0';
+    var resp = UrlFetchApp.fetch(url, {
+      muteHttpExceptions: true,
+      headers: { 'Accept': 'application/json' }
+    });
+    var code = resp.getResponseCode();
+    if (code < 200 || code >= 300) {
+      return { ok: false, opciones: [], error: 'Busqueda fallida (' + code + ').' };
+    }
+    var json = JSON.parse(resp.getContentText());
+    var data = (json && json.data) || json;
+    var arr = (data && data.contribuyentes) || (json && json.contribuyentes) ||
+      (data && data.length !== undefined ? data : null) || (json && json.results) || [];
+    var claves = ['razonSocial', 'razon_social', 'razonsocial', 'razon', 'denominacion', 'nombre', 'nombre_completo', 'nombreCompleto'];
+    var opciones = [];
+    var vistos = {};
+    for (var i = 0; i < arr.length && opciones.length < 15; i++) {
+      var c = arr[i] || {};
+      var razon = primerValor(c, claves);
+      var rucRaw = String(c.ruc || c.RUC || c.numero || c.documento || '').trim();
+      if (!rucRaw) continue;
+      var base = '', dv = null;
+      if (rucRaw.indexOf('-') >= 0) {
+        var g = rucRaw.lastIndexOf('-');
+        base = rucRaw.slice(0, g).replace(/\D/g, '');
+        dv = Number(String(rucRaw.slice(g + 1)).replace(/\D/g, '').charAt(0));
+      } else if (c.dv !== undefined && c.dv !== null && String(c.dv) !== '') {
+        base = rucRaw.replace(/\D/g, '');
+        dv = Number(String(c.dv).replace(/\D/g, '').charAt(0));
+      } else {
+        base = rucRaw.replace(/\D/g, '');
+        dv = calcularDV(base);
+      }
+      if (!base || isNaN(dv)) continue;
+      var clave = base + '-' + dv;
+      if (vistos[clave]) continue;
+      vistos[clave] = true;
+      opciones.push({ ruc: base, dv: dv, razonSocial: razon || '' });
+    }
+    return { ok: true, opciones: opciones };
+  } catch (err) {
+    return { ok: false, opciones: [], error: 'Error al buscar en TuRUC: ' + String(err) };
+  }
+}
+
+/** Digito verificador del RUC/cedula (modulo 11, base maxima 11). */
+function calcularDV(numero, baseMax) {
+  baseMax = baseMax || 11;
+  var numeroAl = '';
+  var s = String(numero || '').trim().toUpperCase();
+  for (var i = 0; i < s.length; i++) {
+    var code = s.charCodeAt(i);
+    if (code >= 48 && code <= 57) numeroAl += s.charAt(i);
+    else numeroAl += String(code);
+  }
+  var k = 2, total = 0;
+  for (var j = numeroAl.length - 1; j >= 0; j--) {
+    if (k > baseMax) k = 2;
+    total += Number(numeroAl.charAt(j)) * k;
+    k++;
+  }
+  var resto = total % 11;
+  return resto > 1 ? 11 - resto : 0;
 }
 
 /**
