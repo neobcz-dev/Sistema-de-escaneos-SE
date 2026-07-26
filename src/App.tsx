@@ -67,7 +67,9 @@ export default function App() {
           const r = await cache.match(`shared-${i}`)
           if (r) {
             const b = await r.blob()
-            files.push(new File([b], `whatsapp-${i}.jpg`, { type: b.type || 'image/jpeg' }))
+            const esPdf = b.type === 'application/pdf'
+            const nombre = esPdf ? `compartido-${i}.pdf` : `compartido-${i}.jpg`
+            files.push(new File([b], nombre, { type: b.type || 'image/jpeg' }))
           }
         }
         // NO limpiamos acá: dejamos que se acumulen mientras el cliente comparte

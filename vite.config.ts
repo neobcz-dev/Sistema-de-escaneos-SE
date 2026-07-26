@@ -59,7 +59,8 @@ export default defineConfig({
             purpose: 'maskable',
           },
         ],
-        // Recibir fotos compartidas desde otras apps (WhatsApp, galería…).
+        // Recibir comprobantes compartidos desde otras apps: fotos (WhatsApp,
+        // galería…) y PDF (facturas electrónicas desde Adobe, Gmail, Drive…).
         share_target: {
           action: `${base}share-target`,
           method: 'POST',
@@ -67,7 +68,7 @@ export default defineConfig({
           params: {
             title: 'title',
             text: 'text',
-            files: [{ name: 'foto', accept: ['image/*'] }],
+            files: [{ name: 'foto', accept: ['image/*', 'application/pdf'] }],
           },
         },
       },
