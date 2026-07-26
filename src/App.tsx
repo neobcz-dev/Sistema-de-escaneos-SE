@@ -8,6 +8,7 @@ import { InstallButton } from './components/InstallButton'
 import type { Cliente, Comprobante } from './types'
 import { procesarImagen, type ImagenProcesada } from './lib/image'
 import { reconocerTexto } from './lib/ocr'
+import { ocrEnServidor } from './lib/ocrServidor'
 import { crearPdfBuscable } from './lib/pdf'
 import { detectarDatos, detectarTipo } from './lib/parse'
 import { consultarRucSet } from './lib/set'
@@ -64,29 +65,41 @@ export default function App() {
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...cambios } : it)))
   }
 
-  /** Ejecuta OCR sobre la imagen y autocompleta los datos detectados. */
+  /** Ejecuta OCR (Google Drive; respaldo Tesseract) y autocompleta los datos. */
   async function ejecutarOCR(id: string, dataUrl: string) {
     actualizarItem(id, { ocrEstado: 'procesando', ocrProgreso: 0 })
-    // OCR sobre la imagen tal cual (Tesseract binariza mejor por su cuenta que
-    // un filtro fuerte, que suele empeorar la lectura).
-    reconocerTexto(dataUrl, (p) => actualizarItem(id, { ocrProgreso: p }))
-      .then(({ texto, palabras }) => {
-        const d = detectarDatos(texto, cliente.ruc)
-        const tipoDetectado = detectarTipo(texto)
-        actualizarItem(id, {
-          ocrTexto: texto,
-          ocrPalabras: palabras,
-          ocrEstado: 'listo',
-          ocrProgreso: 1,
-          rucProveedor: d.rucProveedor,
-          nroFactura: d.nroFactura,
-          timbrado: d.timbrado,
-          // Si el OCR detecta el tipo, lo usamos; si no, dejamos el actual.
-          ...(tipoDetectado ? { tipo: tipoDetectado } : {}),
-        })
-        if (d.rucProveedor) buscarNombreProveedor(id, d.rucProveedor)
-      })
-      .catch(() => actualizarItem(id, { ocrEstado: 'error', ocrProgreso: 1 }))
+    let texto = ''
+    let palabras: Comprobante['ocrPalabras'] = []
+
+    // 1) OCR con el motor de Google (mejor calidad).
+    const serv = await ocrEnServidor(dataUrl)
+    if (serv.ok && typeof serv.texto === 'string') {
+      texto = serv.texto
+    } else {
+      // 2) Respaldo: OCR en el navegador (Tesseract).
+      try {
+        const r = await reconocerTexto(dataUrl, (p) => actualizarItem(id, { ocrProgreso: p }))
+        texto = r.texto
+        palabras = r.palabras
+      } catch {
+        actualizarItem(id, { ocrEstado: 'error', ocrProgreso: 1 })
+        return
+      }
+    }
+
+    const d = detectarDatos(texto, cliente.ruc)
+    const tipoDetectado = detectarTipo(texto)
+    actualizarItem(id, {
+      ocrTexto: texto,
+      ocrPalabras: palabras,
+      ocrEstado: 'listo',
+      ocrProgreso: 1,
+      rucProveedor: d.rucProveedor,
+      nroFactura: d.nroFactura,
+      timbrado: d.timbrado,
+      ...(tipoDetectado ? { tipo: tipoDetectado } : {}),
+    })
+    if (d.rucProveedor) buscarNombreProveedor(id, d.rucProveedor)
   }
 
   /** Busca el nombre del proveedor en TuRUC a partir del RUC detectado. */
@@ -180,12 +193,14 @@ export default function App() {
       if (it.subida === 'ok') continue
       actualizarItem(it.id, { subida: 'subiendo', errorSubida: undefined })
       try {
-        // Texto extra buscable: nombre del proveedor + datos clave.
+        // Texto extra buscable: datos clave + todo el texto OCR (para que el PDF
+        // sea buscable en Drive por su contenido, ya sin posiciones por palabra).
         const extra = [
           it.nombreProveedor,
           it.rucProveedor && `RUC ${it.rucProveedor}`,
           it.tipo,
           it.nroFactura,
+          it.ocrTexto,
         ]
           .filter(Boolean)
           .join(' · ')

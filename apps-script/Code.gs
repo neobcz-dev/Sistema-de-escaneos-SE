@@ -27,6 +27,11 @@ function doPost(e) {
       return jsonResponse(consultarRuc(data.ruc, data.dv));
     }
 
+    // OCR con el motor de Google (Drive) — mucho mejor que el del navegador.
+    if (data.accion === 'ocr') {
+      return jsonResponse(ocrImagen(data.base64, data.mimeType));
+    }
+
     var cliente = data.cliente || {};
     var archivo = data.archivo || {};
 
@@ -156,6 +161,38 @@ function primerValor(obj, claves) {
     if (typeof v === 'string' && v) return v;
   }
   return '';
+}
+
+/**
+ * OCR con el motor de Google: sube la imagen convirtiendola a Documento de
+ * Google (que dispara el OCR), extrae el texto y borra el temporal.
+ * REQUIERE activar el servicio avanzado "Drive API" en el editor de Apps Script.
+ */
+function ocrImagen(base64, mimeType) {
+  if (!base64) return { ok: false, error: 'Sin imagen para OCR.' };
+  var tempId = null;
+  try {
+    var blob = Utilities.newBlob(
+      Utilities.base64Decode(base64),
+      mimeType || 'image/jpeg',
+      'ocr-temp.jpg'
+    );
+    // Insertar convirtiendo a Documento de Google, con OCR en español.
+    var file = Drive.Files.insert(
+      { title: 'ocr-temp', mimeType: 'application/vnd.google-apps.document' },
+      blob,
+      { ocr: true, ocrLanguage: 'es' }
+    );
+    tempId = file.id;
+    var texto = DocumentApp.openById(tempId).getBody().getText();
+    return { ok: true, texto: texto || '' };
+  } catch (err) {
+    return { ok: false, error: 'OCR no disponible: ' + String(err) };
+  } finally {
+    if (tempId) {
+      try { Drive.Files.remove(tempId); } catch (e2) {}
+    }
+  }
 }
 
 function construirDescripcion(data, tz) {
