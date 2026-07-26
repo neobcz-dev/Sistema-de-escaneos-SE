@@ -54,9 +54,9 @@ export function soloDigitos(texto: string): string {
 
 // N° de comprobante: formato estricto NNN-NNN-NNNNNNN.
 const RE_NRO_ESTRICTO = /\b(\d{3})-(\d{3})-(\d{6,7})\b/
-// Tolerante al ruido del OCR: separadores pueden ser guion, punto o espacio
-// (en las facturas el número suele estar partido en celdas: "001-002  0000462").
-const RE_NRO_FLEX = /(\d{2,3})[-.\s]{1,3}(\d{3})[-.\s]{1,3}(\d{6,7})/
+// Tolerante al ruido del OCR: separadores por guion/punto/espacio y la
+// secuencia final puede venir con espacios entre dígitos ("00 0 0 4 6 2").
+const RE_NRO_FLEX = /(\d{2,3})[-.\s]{1,2}(\d{3})[-.\s]{1,3}((?:\d[ .]?){6,9})/
 // RUC con dígito verificador, admitiendo espacios: "1636907 - 6".
 const RE_RUC = /(\d{5,8})\s*[-–]\s*(\d)(?!\d)/g
 // Timbrado: la palabra seguida (con ruido de por medio) de 7-9 dígitos.
@@ -66,7 +66,10 @@ function detectarNumero(t: string): string {
   const e = t.match(RE_NRO_ESTRICTO)
   if (e) return `${e[1]}-${e[2]}-${e[3]}`
   const f = t.match(RE_NRO_FLEX)
-  if (f) return `${f[1]}-${f[2]}-${f[3]}`
+  if (f) {
+    const seq = f[3].replace(/\D/g, '').slice(0, 7)
+    if (seq.length >= 6) return `${f[1]}-${f[2]}-${seq}`
+  }
   return ''
 }
 
