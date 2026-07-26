@@ -2,7 +2,6 @@ import { useState } from 'react'
 import type { Comprobante, TipoComprobante } from '../types'
 import { codigoTipo, formatearNumeroComprobante, TIPOS_COMPROBANTE } from '../lib/util'
 import { analizarRuc } from '../lib/ruc'
-import { CameraCapture } from './CameraCapture'
 import { ImageEditor, type ResultadoEdicion } from './ImageEditor'
 import { ZoomViewer } from './ZoomViewer'
 import { BuscadorNombre } from './BuscadorNombre'
@@ -36,7 +35,6 @@ export function Scanner({
   onAtras,
   onContinuar,
 }: Props) {
-  const [camara, setCamara] = useState(false)
   const [editando, setEditando] = useState<Comprobante | null>(null)
   const [zoom, setZoom] = useState<Comprobante | null>(null)
   const [buscarProvId, setBuscarProvId] = useState<string | null>(null)
@@ -46,22 +44,31 @@ export function Scanner({
     e.target.value = ''
   }
 
+  function alCapturar(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files && e.target.files.length) onAgregarArchivos(e.target.files, true)
+    e.target.value = ''
+  }
+
   return (
     <div className="space-y-5">
       <div className="card space-y-4">
         <div>
           <h2 className="text-xl font-bold text-navy">Capture sus comprobantes</h2>
           <p className="mt-1 text-sm text-anthracite/70">
-            Con la cámara puede sacar <span className="font-semibold">varias fotos seguidas</span>{' '}
-            sin reabrirla. Leemos el texto y detectamos el RUC del proveedor y el N° de
+            Use la <span className="font-semibold">cámara del celular</span> para la mejor calidad, o
+            elija fotos de la galería. Leemos el texto y detectamos el RUC del proveedor y el N° de
             comprobante automáticamente.
           </p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <button type="button" className="btn-primary" onClick={() => setCamara(true)}>
+          <label className="btn-primary cursor-pointer">
             <IconCamara /> Escanear con cámara
-          </button>
+            {/* Sin `capture`: Android abre el selector y el usuario puede elegir la app
+                de cámara nativa del celular (máxima resolución) en vez de la cámara
+                embebida del navegador. */}
+            <input type="file" accept="image/*" className="hidden" onChange={alCapturar} />
+          </label>
           <label className="btn-ghost cursor-pointer">
             <IconGaleria /> Elegir de la galería
             <input type="file" accept="image/*" multiple className="hidden" onChange={alSeleccionar} />
@@ -265,15 +272,6 @@ export function Scanner({
           Continuar ({items.length})
         </button>
       </div>
-
-      {camara && (
-        <CameraCapture
-          onCapturar={(blob) =>
-            onAgregarArchivos([new File([blob], 'captura.jpg', { type: 'image/jpeg' })], true)
-          }
-          onCerrar={() => setCamara(false)}
-        />
-      )}
 
       {editando && (
         <ImageEditor

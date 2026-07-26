@@ -950,7 +950,7 @@ export function recortarMargenesBlancos(
 export async function detectarEsquinasPorHoja(src: string): Promise<Punto[] | null> {
   try {
     const img = await loadImage(src)
-    const tope = 1000
+    const tope = 1200
     const esc = Math.min(1, tope / Math.max(img.width, img.height))
     const w = Math.max(1, Math.round(img.width * esc))
     const h = Math.max(1, Math.round(img.height * esc))
@@ -994,7 +994,7 @@ export function validarEsquinas(e: Punto[]): boolean {
   const ys = e.map((p) => p.y)
   const ancho = Math.max(...xs) - Math.min(...xs)
   const alto = Math.max(...ys) - Math.min(...ys)
-  if (ancho < 0.15 || alto < 0.1) return false
+  if (ancho < 0.08 || alto < 0.15) return false
   const aspecto = ancho / alto
-  return aspecto >= 0.35 && aspecto <= 2.5
+  return aspecto >= 0.15 && aspecto <= 3.0
 }
