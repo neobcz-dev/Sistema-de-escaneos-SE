@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Cliente, TipoComprobante } from '../types'
 import { calcularDV, emailValido, rucCompleto, TIPOS_COMPROBANTE } from '../lib/util'
+import { consultarRucSet, noConfigurada } from '../lib/set'
 
 const TIPOS = TIPOS_COMPROBANTE
 
@@ -24,6 +25,38 @@ export function ClientForm({ valor, fotosCompartidas = 0, onContinuar }: Props) 
   const baseLimpia = rucBase.trim()
   const dv = baseLimpia ? calcularDV(baseLimpia) : null
   const rucValidoBase = /^[0-9A-Za-z]{3,12}$/.test(baseLimpia)
+
+  // Consulta automática del nombre en la SET (vía Apps Script) al validar el RUC.
+  type EstadoSet = { estado: 'idle' | 'buscando' | 'ok' | 'error'; razon?: string; msg?: string }
+  const [consultaSet, setConsultaSet] = useState<EstadoSet>({ estado: 'idle' })
+
+  useEffect(() => {
+    if (!rucValidoBase || dv === null) {
+      setConsultaSet({ estado: 'idle' })
+      return
+    }
+    let cancelado = false
+    setConsultaSet({ estado: 'buscando' })
+    const t = setTimeout(async () => {
+      const r = await consultarRucSet(baseLimpia, dv)
+      if (cancelado) return
+      if (noConfigurada(r)) {
+        setConsultaSet({ estado: 'idle' }) // silencioso si no está configurada
+        return
+      }
+      if (r.ok && r.razonSocial) {
+        setConsultaSet({ estado: 'ok', razon: r.razonSocial })
+        // Autocompleta el nombre solo si está vacío (no pisa lo que el usuario escribió).
+        setCliente((c) => (c.nombre.trim() ? c : { ...c, nombre: r.razonSocial as string }))
+      } else {
+        setConsultaSet({ estado: 'error', msg: r.error })
+      }
+    }, 700)
+    return () => {
+      cancelado = true
+      clearTimeout(t)
+    }
+  }, [baseLimpia, dv, rucValidoBase])
 
   const errores = {
     nombre: cliente.nombre.trim().length < 2 ? 'Ingrese su nombre o razón social.' : '',
@@ -107,6 +140,20 @@ export function ClientForm({ valor, fotosCompartidas = 0, onContinuar }: Props) 
             </p>
           ) : (
             tocado && errores.ruc && <p className="mt-1 text-sm text-red-600">{errores.ruc}</p>
+          )}
+          {consultaSet.estado === 'buscando' && (
+            <p className="mt-1 flex items-center gap-1.5 text-xs text-celeste-dark">
+              <span className="h-3 w-3 animate-spin rounded-full border-2 border-celeste border-t-transparent" />
+              Consultando la SET…
+            </p>
+          )}
+          {consultaSet.estado === 'ok' && consultaSet.razon && (
+            <p className="mt-1 text-xs font-medium text-emerald-700">
+              ✓ SET: {consultaSet.razon}
+            </p>
+          )}
+          {consultaSet.estado === 'error' && (
+            <p className="mt-1 text-xs text-amber-600">SET: {consultaSet.msg}</p>
           )}
         </div>
         <div>

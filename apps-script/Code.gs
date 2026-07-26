@@ -13,6 +13,10 @@
 // === Carpeta destino en Google Drive (Servicio Empresarial) ===
 var FOLDER_ID = '1w4zPtnayNonsFU2-36EI-JWpQNKZbvDq';
 
+// === APIKEY del servicio de Consulta Publica de la SET (Sistema Marangatu) ===
+// Deje '' para desactivar la consulta de RUC. Peguela aqui cuando la obtenga.
+var SET_APIKEY = '';
+
 /** Punto de entrada para las subidas (POST desde la app). */
 function doPost(e) {
   try {
@@ -21,6 +25,12 @@ function doPost(e) {
     }
 
     var data = JSON.parse(e.postData.contents);
+
+    // Consulta de RUC a la SET (no guarda archivo).
+    if (data.accion === 'consultaRuc') {
+      return jsonResponse(consultarRuc(data.ruc, data.dv));
+    }
+
     var cliente = data.cliente || {};
     var archivo = data.archivo || {};
 
@@ -109,6 +119,37 @@ function nombreUnico(carpeta, nombre) {
     candidato = base + ' (' + i + ')' + ext;
   }
   return candidato;
+}
+
+/**
+ * Consulta el RUC en el servicio publico de la SET y devuelve la razon social.
+ * Requiere SET_APIKEY configurada. El apiKey NUNCA sale de este servidor.
+ */
+function consultarRuc(ruc, dv) {
+  if (!SET_APIKEY) return { ok: false, error: 'Consulta de RUC no configurada.' };
+  if (!ruc || dv === undefined || dv === null || dv === '') {
+    return { ok: false, error: 'Faltan RUC o DV.' };
+  }
+  try {
+    var url =
+      'https://servicios.set.gov.py/EsetApiWS/ApiWS/consultaRUC' +
+      '?apiKey=' + encodeURIComponent(SET_APIKEY) +
+      '&ruc=' + encodeURIComponent(String(ruc)) +
+      '&dv=' + encodeURIComponent(String(dv));
+    var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    var json = JSON.parse(resp.getContentText());
+    if (json && json.estado === 'VALIDO' && json.contribuyente) {
+      return {
+        ok: true,
+        razonSocial: json.contribuyente.razonSocial || '',
+        estadoRuc: json.contribuyente.estado || '',
+        nombreComercial: json.contribuyente.nombreComercial || ''
+      };
+    }
+    return { ok: false, error: (json && json.mensaje) || 'RUC no encontrado.' };
+  } catch (err) {
+    return { ok: false, error: 'Error al consultar la SET: ' + String(err) };
+  }
 }
 
 function construirDescripcion(data, tz) {
