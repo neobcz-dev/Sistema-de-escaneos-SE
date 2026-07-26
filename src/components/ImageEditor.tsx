@@ -23,7 +23,7 @@ const FILTROS: { id: Filtro; nombre: string }[] = [
 function cssFiltro(filtro: Filtro, ajustes: AjustesFiltro): string | undefined {
   switch (filtro) {
     case 'magico':
-      return `brightness(${1.12 + ajustes.brillo / 200}) contrast(${1.35 + ajustes.contraste / 140}) saturate(1.2)`
+      return `brightness(${1.16 + ajustes.brillo / 200}) contrast(${1.38 + ajustes.contraste / 140}) saturate(0.82)`
     case 'gris':
       return 'grayscale(1)'
     case 'realce':

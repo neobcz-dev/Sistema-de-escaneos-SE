@@ -321,6 +321,7 @@ export default function App() {
         <p className="text-center text-xs text-anthracite/50">
           {EMPRESA.nombre} · {EMPRESA.tagline}
         </p>
+        <p className="mt-0.5 text-center text-[10px] text-anthracite/30">v{__BUILD__}</p>
       </footer>
     </div>
   )

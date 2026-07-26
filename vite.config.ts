@@ -6,8 +6,17 @@ import { VitePWA } from 'vite-plugin-pwa'
 // En desarrollo local usamos la raíz "/".
 const base = process.env.NODE_ENV === 'production' ? '/Sistema-de-escaneos-SE/' : '/'
 
+// Sello de versión (fecha/hora de compilación) para saber si la app está al día.
+const version = new Date()
+  .toISOString()
+  .slice(2, 16)
+  .replace('T', ' ')
+
 export default defineConfig({
   base,
+  define: {
+    __BUILD__: JSON.stringify(version),
+  },
   plugins: [
     react(),
     VitePWA({
