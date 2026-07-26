@@ -2,7 +2,7 @@
 import { APPS_SCRIPT_URL } from '../config'
 import type { Cliente, Comprobante } from '../types'
 import { blobToBase64 } from './image'
-import { codigoTipo, limpiarNumero, limpiarRef, periodoActual } from './util'
+import { codigoTipo, limpiarNumero, limpiarRef } from './util'
 
 export interface RespuestaSubida {
   ok: boolean
@@ -43,7 +43,6 @@ export async function subirComprobante(
       ruc: cliente.ruc,
       email: cliente.email,
       tipo: cliente.tipo,
-      periodo: periodoActual(), // mes actual, automático
       nota: cliente.nota,
     },
     detectado: {

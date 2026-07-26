@@ -31,11 +31,11 @@ function doPost(e) {
     var raiz = DriveApp.getFolderById(FOLDER_ID);
     var carpetaCliente = obtenerOCrearSubcarpeta(raiz, nombreCarpetaCliente(cliente));
 
-    // Subcarpeta por período (mes). Estructura: Cliente (RUC) / AAAA-MM /
-    var periodo = periodoValido(cliente.periodo)
-      ? cliente.periodo
-      : Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM');
-    var carpetaMes = obtenerOCrearSubcarpeta(carpetaCliente, periodo);
+    // Subcarpeta por FECHA DE ENVIO (la calcula el servidor, no el cliente).
+    // Estructura: Cliente (RUC) / AAAA-MM /
+    var tz = Session.getScriptTimeZone();
+    var mesEnvio = Utilities.formatDate(new Date(), tz, 'yyyy-MM');
+    var carpetaMes = obtenerOCrearSubcarpeta(carpetaCliente, mesEnvio);
 
     var bytes = Utilities.base64Decode(archivo.base64);
     var mime = archivo.mimeType || 'image/jpeg';
@@ -43,13 +43,13 @@ function doPost(e) {
     var blob = Utilities.newBlob(bytes, mime, nombre);
 
     var file = carpetaMes.createFile(blob);
-    file.setDescription(construirDescripcion(data));
+    file.setDescription(construirDescripcion(data, tz));
 
     return jsonResponse({
       ok: true,
       url: file.getUrl(),
       fileId: file.getId(),
-      carpeta: carpetaCliente.getName() + ' / ' + periodo
+      carpeta: carpetaCliente.getName() + ' / ' + mesEnvio
     });
   } catch (err) {
     return jsonResponse({ ok: false, error: String(err && err.message ? err.message : err) });
@@ -90,26 +90,22 @@ function obtenerOCrearSubcarpeta(padre, nombre) {
   return padre.createFolder(nombre);
 }
 
-function periodoValido(p) {
-  return typeof p === 'string' && /^\d{4}-\d{2}$/.test(p);
-}
-
-function construirDescripcion(data) {
+function construirDescripcion(data, tz) {
   var c = data.cliente || {};
   var d = data.detectado || {};
+  var recibido = Utilities.formatDate(new Date(), tz || 'GMT', 'yyyy-MM-dd HH:mm');
   var lineas = [
     'Cliente: ' + (c.nombre || ''),
     'RUC/CI cliente: ' + (c.ruc || ''),
     'Correo: ' + (c.email || ''),
-    'Periodo: ' + (c.periodo || ''),
     'Nota: ' + (c.nota || ''),
+    'Recibido: ' + recibido,
     '',
     '--- Datos detectados ---',
     'Tipo: ' + (d.tipo || c.tipo || ''),
     'RUC proveedor: ' + (d.rucProveedor || '(no detectado)'),
-    'N° comprobante: ' + (d.nroFactura || '(no detectado)'),
+    'N comprobante: ' + (d.nroFactura || '(no detectado)'),
     'Timbrado: ' + (d.timbrado || '(no detectado)'),
-    'Enviado: ' + (data.enviadoEn || ''),
     '',
     '--- Texto detectado (OCR) ---',
     data.ocr || '(sin texto)'

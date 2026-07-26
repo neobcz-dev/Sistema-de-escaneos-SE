@@ -111,7 +111,7 @@ export function ClientForm({ valor, fotosCompartidas = 0, onContinuar }: Props) 
           ))}
         </select>
         <p className="mt-1 text-xs text-anthracite/50">
-          El período se registra automáticamente (mes de envío).
+          Los comprobantes se archivan por fecha de envío.
         </p>
       </div>
 
