@@ -64,10 +64,16 @@ export function Scanner({
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="btn-primary cursor-pointer">
             <IconCamara /> Escanear con cámara
-            {/* Sin `capture`: Android abre el selector y el usuario puede elegir la app
-                de cámara nativa del celular (máxima resolución) en vez de la cámara
-                embebida del navegador. */}
-            <input type="file" accept="image/*" className="hidden" onChange={alCapturar} />
+            {/* `capture="environment"`: abre directamente la app de cámara nativa del
+                celular (Samsung Camera, máxima resolución) y devuelve la foto como
+                archivo de alta calidad. Sin `capture`, Android abre la galería. */}
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={alCapturar}
+            />
           </label>
           <label className="btn-ghost cursor-pointer">
             <IconGaleria /> Elegir de la galería
