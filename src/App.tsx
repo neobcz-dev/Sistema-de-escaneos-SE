@@ -5,6 +5,9 @@ import { ClientForm } from './components/ClientForm'
 import { Scanner } from './components/Scanner'
 import { ReviewSend } from './components/ReviewSend'
 import { InstallButton } from './components/InstallButton'
+import { Historial } from './components/Historial'
+import { bloquearAutoActualizacion } from './lib/autoActualizar'
+import { agregarAlHistorial } from './lib/historial'
 import type { Cliente, Comprobante } from './types'
 import { procesarImagen, detectarEsquinas, recortarPerspectiva, editarImagen } from './lib/image'
 import type { ResultadoEdicion } from './components/ImageEditor'
@@ -35,8 +38,15 @@ export default function App() {
   const [items, setItems] = useState<Comprobante[]>([])
   const [enviando, setEnviando] = useState(false)
   const [finalizado, setFinalizado] = useState(false)
+  const [verHistorial, setVerHistorial] = useState(false)
   // Fotos recibidas desde WhatsApp/galería vía "Compartir con la app".
   const [compartidas, setCompartidas] = useState<File[]>([])
+
+  // No dejar que la app se recargue sola (por una actualización) mientras haya
+  // comprobantes en la lista o un envío en curso: se perdería el trabajo.
+  useEffect(() => {
+    bloquearAutoActualizacion(enviando || items.length > 0)
+  }, [enviando, items.length])
 
   useEffect(() => {
     if (!window.location.search.includes('compartido')) return
@@ -244,8 +254,23 @@ export default function App() {
         // PDF buscable: imagen + capa de texto invisible del OCR + texto extra.
         const pdf = await crearPdfBuscable(it.dataUrl, it.width, it.height, it.ocrPalabras, extra)
         const r = await subirComprobante(cliente, it, pdf, i + 1, total)
-        if (r.ok) actualizarItem(it.id, { subida: 'ok', urlDrive: r.url })
-        else actualizarItem(it.id, { subida: 'error', errorSubida: r.error })
+        if (r.ok) {
+          actualizarItem(it.id, { subida: 'ok', urlDrive: r.url })
+          // Guardar en el historial local (sobrevive a recargas y cierres).
+          agregarAlHistorial({
+            id: `${it.id}-${new Date().getTime()}`,
+            fecha: new Date().toISOString(),
+            clienteNombre: cliente.nombre,
+            clienteRuc: cliente.ruc,
+            tipo: it.tipo,
+            proveedor: it.nombreProveedor,
+            rucProveedor: it.rucProveedor,
+            nroFactura: it.nroFactura,
+            urlDrive: r.url,
+          })
+        } else {
+          actualizarItem(it.id, { subida: 'error', errorSubida: r.error })
+        }
       } catch (e) {
         actualizarItem(it.id, {
           subida: 'error',
@@ -273,6 +298,16 @@ export default function App() {
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 pb-10 sm:px-6">
         {paso === 0 && <InstallButton />}
+
+        {paso === 0 && (
+          <button
+            type="button"
+            onClick={() => setVerHistorial(true)}
+            className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl border border-navy/10 bg-white px-4 py-3 text-sm font-semibold text-navy shadow-sm"
+          >
+            📋 Ver historial de envíos
+          </button>
+        )}
 
         {paso === 0 && (
           <ClientForm
@@ -323,6 +358,8 @@ export default function App() {
         </p>
         <p className="mt-0.5 text-center text-[10px] text-anthracite/30">v{__BUILD__}</p>
       </footer>
+
+      {verHistorial && <Historial onCerrar={() => setVerHistorial(false)} />}
     </div>
   )
 }
