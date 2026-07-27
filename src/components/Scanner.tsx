@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Comprobante, TipoComprobante } from '../types'
 import { codigoTipo, formatearNumeroComprobante, TIPOS_COMPROBANTE } from '../lib/util'
 import { analizarRuc } from '../lib/ruc'
@@ -8,7 +8,11 @@ import { BuscadorNombre } from './BuscadorNombre'
 
 interface Props {
   items: Comprobante[]
-  onAgregarArchivos: (files: FileList | File[], autoRecorte?: boolean) => void
+  onAgregarArchivos: (
+    files: FileList | File[],
+    autoRecorte?: boolean,
+    abrirEditorCamara?: boolean,
+  ) => void
   onEliminar: (id: string) => void
   onEditarOCR: (id: string, texto: string) => void
   onEditarCampo: (
@@ -19,6 +23,8 @@ interface Props {
   onEditarTipo: (id: string, tipo: TipoComprobante) => void
   onBuscarProveedor: (id: string, ruc: string) => void
   onReemplazarImagen: (id: string, r: ResultadoEdicion) => void
+  recorteAutoId?: string | null
+  onRecorteAutoConsumido?: () => void
   onAtras: () => void
   onContinuar: () => void
 }
@@ -32,6 +38,8 @@ export function Scanner({
   onEditarTipo,
   onBuscarProveedor,
   onReemplazarImagen,
+  recorteAutoId,
+  onRecorteAutoConsumido,
   onAtras,
   onContinuar,
 }: Props) {
@@ -39,13 +47,24 @@ export function Scanner({
   const [zoom, setZoom] = useState<Comprobante | null>(null)
   const [buscarProvId, setBuscarProvId] = useState<string | null>(null)
 
+  // Al tomar una foto con la cámara, abrimos el editor de recorte para esa foto
+  // (con las esquinas ya detectadas) apenas queda cargada en la lista.
+  useEffect(() => {
+    if (!recorteAutoId) return
+    const item = items.find((it) => it.id === recorteAutoId)
+    if (item) {
+      setEditando(item)
+      onRecorteAutoConsumido?.()
+    }
+  }, [recorteAutoId, items, onRecorteAutoConsumido])
+
   function alSeleccionar(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.files && e.target.files.length) onAgregarArchivos(e.target.files)
     e.target.value = ''
   }
 
   function alCapturar(e: React.ChangeEvent<HTMLInputElement>) {
-    if (e.target.files && e.target.files.length) onAgregarArchivos(e.target.files, true)
+    if (e.target.files && e.target.files.length) onAgregarArchivos(e.target.files, true, true)
     e.target.value = ''
   }
 

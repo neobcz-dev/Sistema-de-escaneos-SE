@@ -101,7 +101,7 @@ export function Historial({ onCerrar }: Props) {
                       {r.miniatura ? (
                         <button
                           type="button"
-                          onClick={() => setZoom(r.miniatura || null)}
+                          onClick={() => setZoom(r.vista || r.miniatura || null)}
                           className="h-28 w-24 shrink-0 overflow-hidden rounded-lg ring-1 ring-navy/10"
                           aria-label="Ampliar"
                         >

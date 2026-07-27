@@ -48,6 +48,8 @@ export default function App() {
   const [verHistorial, setVerHistorial] = useState(false)
   // Fotos recibidas desde WhatsApp/galería vía "Compartir con la app".
   const [compartidas, setCompartidas] = useState<File[]>([])
+  // Id de la foto recién tomada con la cámara para abrir el editor de recorte.
+  const [recorteAutoId, setRecorteAutoId] = useState<string | null>(null)
 
   // No dejar que la app se recargue sola (por una actualización) mientras haya
   // comprobantes en la lista o un envío en curso: se perdería el trabajo.
@@ -173,15 +175,21 @@ export default function App() {
     actualizarItem(id, { nombreProveedor: nombre })
   }
 
-  async function agregarArchivos(files: FileList | File[], autoDetectar = true) {
+  async function agregarArchivos(
+    files: FileList | File[],
+    autoDetectar = true,
+    abrirEditorCamara = false,
+  ) {
     const esPdf = (f: File) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name)
     const lista = Array.from(files).filter((f) => f.type.startsWith('image/') || esPdf(f))
+    let ultimoIdImagen = ''
     for (const file of lista) {
       if (esPdf(file)) {
         await agregarPdf(file)
         continue
       }
       const id = nuevoId()
+      ultimoIdImagen = id
       try {
         // Foto completa con la orientación EXIF ya aplicada.
         const original = await procesarImagen(file, { autoRecorte: false })
@@ -248,6 +256,9 @@ export default function App() {
         console.error('No se pudo procesar la imagen', e)
       }
     }
+    // Tras una foto de la cámara abrimos el editor de recorte (con las esquinas
+    // ya detectadas) para confirmar o ajustar el encuadre en un solo paso.
+    if (abrirEditorCamara && ultimoIdImagen) setRecorteAutoId(ultimoIdImagen)
   }
 
   /**
@@ -370,9 +381,11 @@ export default function App() {
         const r = await subirComprobante(cliente, it, pdf, i + 1, total)
         if (r.ok) {
           actualizarItem(it.id, { subida: 'ok', urlDrive: r.url })
-          // Guardar en el historial local (sobrevive a recargas y cierres),
-          // con una miniatura de la imagen.
-          const miniatura = await crearMiniatura(it.dataUrl)
+          // Guardar en el historial local (sobrevive a recargas y cierres):
+          // una miniatura nítida para la tarjeta y una imagen grande para
+          // ampliar sin que se vea borrosa.
+          const miniatura = await crearMiniatura(it.dataUrl, 360, 0.72)
+          const vista = await crearMiniatura(it.dataUrl, 1200, 0.82)
           agregarAlHistorial({
             id: `${it.id}-${new Date().getTime()}`,
             fecha: new Date().toISOString(),
@@ -383,6 +396,7 @@ export default function App() {
             rucProveedor: it.rucProveedor,
             nroFactura: it.nroFactura,
             miniatura,
+            vista,
           })
         } else {
           actualizarItem(it.id, { subida: 'error', errorSubida: r.error })
@@ -451,6 +465,8 @@ export default function App() {
             onEditarTipo={editarTipo}
             onBuscarProveedor={buscarNombreProveedor}
             onReemplazarImagen={reemplazarImagen}
+            recorteAutoId={recorteAutoId}
+            onRecorteAutoConsumido={() => setRecorteAutoId(null)}
             onAtras={() => setPaso(0)}
             onContinuar={() => setPaso(2)}
           />
