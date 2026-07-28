@@ -82,7 +82,7 @@ export function Scanner({
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="btn-primary cursor-pointer">
+          <label className="btn-primary cursor-pointer sm:col-span-2">
             <IconCamara /> Escanear con cámara
             {/* `capture="environment"`: abre directamente la app de cámara nativa del
                 celular (Samsung Camera, máxima resolución) y devuelve la foto como
@@ -96,10 +96,24 @@ export function Scanner({
             />
           </label>
           <label className="btn-ghost cursor-pointer">
-            <IconGaleria /> Galería o PDF
+            <IconGaleria /> Elegir de la galería
+            {/* Solo `image/*`: abre directamente la galería de fotos, sin pasar
+                por el selector de "archivos". */}
             <input
               type="file"
-              accept="image/*,application/pdf"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={alSeleccionar}
+            />
+          </label>
+          <label className="btn-ghost cursor-pointer">
+            <IconArchivo /> Subir PDF
+            {/* Solo `application/pdf`: abre el selector de archivos para las
+                facturas electrónicas. */}
+            <input
+              type="file"
+              accept="application/pdf"
               multiple
               className="hidden"
               onChange={alSeleccionar}
@@ -395,6 +409,15 @@ function IconGaleria() {
       <rect x="3" y="3" width="18" height="18" rx="2" />
       <circle cx="9" cy="9" r="2" />
       <path d="m21 15-3.5-3.5L9 20" />
+    </svg>
+  )
+}
+
+function IconArchivo() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+      <path d="M14 2v6h6" />
     </svg>
   )
 }
