@@ -7,6 +7,14 @@ import { ZoomViewer } from './ZoomViewer'
 import { BuscadorNombre } from './BuscadorNombre'
 import { escanearDocumento, escanerNativoDisponible } from '../lib/escaner'
 
+/** Detecta iPhone/iPad (incluye iPad que se reporta como Mac con pantalla táctil). */
+function detectarIOS(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  const touchMac = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
+  return /iphone|ipad|ipod/i.test(ua) || touchMac
+}
+
 interface Props {
   items: Comprobante[]
   onAgregarArchivos: (
@@ -51,6 +59,9 @@ export function Scanner({
   // Google (ML Kit); en la web se usa cámara/galería.
   const [nativo] = useState(escanerNativoDisponible)
   const [escaneando, setEscaneando] = useState(false)
+  // En iPhone/iPad (web) guiamos al usuario a escanear con la app Notas/Archivos
+  // (VisionKit) y subir el PDF, que es la mejor forma de escaneo sin app nativa.
+  const [esIOS] = useState(detectarIOS)
 
   async function escanear() {
     if (escaneando) return
@@ -98,14 +109,23 @@ export function Scanner({
             electrónica). Leemos el texto y detectamos el RUC del proveedor y el N° de comprobante
             automáticamente.
           </p>
-          {!nativo && (
-            <p className="mt-2 rounded-lg bg-celeste/10 px-3 py-2 text-xs text-navy/80">
-              💡 <span className="font-semibold">Mejor recorte:</span> escaneá con el escáner de tu
-              celular (p. ej. Cámara Samsung → “Escanear documento”) y{' '}
-              <span className="font-semibold">Compartí</span> el resultado a esta app. Lo tomamos tal
-              cual, sin volver a recortarlo.
-            </p>
-          )}
+          {!nativo &&
+            (esIOS ? (
+              <p className="mt-2 rounded-lg bg-celeste/10 px-3 py-2 text-xs text-navy/80">
+                💡 <span className="font-semibold">En iPhone, el mejor recorte:</span> abrí{' '}
+                <span className="font-semibold">Notas</span> (o Archivos) →{' '}
+                <span className="font-semibold">Escanear documentos</span>, guardá como PDF y subilo
+                acá con <span className="font-semibold">“Subir PDF”</span>. El iPhone recorta y
+                endereza solo.
+              </p>
+            ) : (
+              <p className="mt-2 rounded-lg bg-celeste/10 px-3 py-2 text-xs text-navy/80">
+                💡 <span className="font-semibold">Mejor recorte:</span> escaneá con el escáner de tu
+                celular (p. ej. Cámara Samsung → “Escanear documento”) y{' '}
+                <span className="font-semibold">Compartí</span> el resultado a esta app. Lo tomamos
+                tal cual, sin volver a recortarlo.
+              </p>
+            ))}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
