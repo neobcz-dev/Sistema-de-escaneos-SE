@@ -218,9 +218,16 @@ export default function App() {
             ocrUrl = ocrImg.dataUrl
             vista = await recortarPerspectiva(enderezada, esquinas, 'magico')
             recortado = true
-          } else {
+          } else if (autoDetectar) {
             ocrUrl = enderezada
             vista = await editarImagen(enderezada, { filtro: 'magico' })
+          } else {
+            // Imagen ya escaneada por fuera (p. ej. el escáner de Samsung, que
+            // recorta y corrige la perspectiva mucho mejor): se toma TAL CUAL,
+            // sin re-recortar ni aplicar el filtro mágico, para no arruinarla.
+            ocrUrl = original.dataUrl
+            vista = original
+            recortado = true
           }
         } catch {
           vista = original // si algo falla, dejamos la foto original
@@ -447,7 +454,9 @@ export default function App() {
               setCliente(c)
               setPaso(1)
               if (compartidas.length) {
-                agregarArchivos(compartidas, true) // con detección de esquinas
+                // Lo compartido suele venir ya escaneado/recortado por fuera
+                // (escáner de Samsung, etc.): se toma tal cual, sin re-recortar.
+                agregarArchivos(compartidas, false)
                 setCompartidas([])
                 limpiarCompartidos()
               }

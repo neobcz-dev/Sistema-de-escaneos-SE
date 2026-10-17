@@ -79,6 +79,12 @@ export function Scanner({
             electrónica). Leemos el texto y detectamos el RUC del proveedor y el N° de comprobante
             automáticamente.
           </p>
+          <p className="mt-2 rounded-lg bg-celeste/10 px-3 py-2 text-xs text-navy/80">
+            💡 <span className="font-semibold">Mejor recorte:</span> escaneá con el escáner de tu
+            celular (p. ej. Cámara Samsung → “Escanear documento”) y{' '}
+            <span className="font-semibold">Compartí</span> el resultado a esta app. Lo tomamos tal
+            cual, sin volver a recortarlo.
+          </p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
