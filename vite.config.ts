@@ -4,7 +4,10 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // El repositorio se publica en GitHub Pages bajo /Sistema-de-escaneos-SE/.
 // En desarrollo local usamos la raíz "/".
-const base = process.env.NODE_ENV === 'production' ? '/Sistema-de-escaneos-SE/' : '/'
+// Para la app nativa (Capacitor) los archivos se sirven desde la raíz del
+// dispositivo, así que forzamos base "/" con CAP_BUILD=1 (ver `npm run build:app`).
+const esApp = process.env.CAP_BUILD === '1'
+const base = esApp ? '/' : process.env.NODE_ENV === 'production' ? '/Sistema-de-escaneos-SE/' : '/'
 
 // Sello de versión (fecha/hora de compilación) en hora de Paraguay, para saber
 // de un vistazo si la app está al día.
@@ -28,6 +31,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      disable: esApp, // en la app nativa no usamos service worker/PWA
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.ts',

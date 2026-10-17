@@ -7,10 +7,15 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:app": "tsc -b && CAP_BUILD=1 vite build && cap sync android",
     "preview": "vite preview",
     "gen:icons": "node scripts/gen-icons.mjs"
   },
   "dependencies": {
+    "@capacitor-mlkit/document-scanner": "^8.2.1",
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/filesystem": "^8.1.5",
     "jspdf": "^2.5.2",
     "pdfjs-dist": "^6.1.200",
     "react": "^18.3.1",
@@ -18,6 +23,7 @@
     "tesseract.js": "^5.1.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.3",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",

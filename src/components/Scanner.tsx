@@ -5,6 +5,7 @@ import { analizarRuc } from '../lib/ruc'
 import { ImageEditor, type ResultadoEdicion } from './ImageEditor'
 import { ZoomViewer } from './ZoomViewer'
 import { BuscadorNombre } from './BuscadorNombre'
+import { escanearDocumento, escanerNativoDisponible } from '../lib/escaner'
 
 interface Props {
   items: Comprobante[]
@@ -46,6 +47,24 @@ export function Scanner({
   const [editando, setEditando] = useState<Comprobante | null>(null)
   const [zoom, setZoom] = useState<Comprobante | null>(null)
   const [buscarProvId, setBuscarProvId] = useState<string | null>(null)
+  // En la app nativa de Android está disponible el escáner de documentos de
+  // Google (ML Kit); en la web se usa cámara/galería.
+  const [nativo] = useState(escanerNativoDisponible)
+  const [escaneando, setEscaneando] = useState(false)
+
+  async function escanear() {
+    if (escaneando) return
+    setEscaneando(true)
+    try {
+      const files = await escanearDocumento()
+      // Ya vienen recortados y corregidos por el escáner: no re-recortar.
+      if (files.length) onAgregarArchivos(files, false)
+    } catch (e) {
+      console.error('Escaneo cancelado o con error', e)
+    } finally {
+      setEscaneando(false)
+    }
+  }
 
   // Al tomar una foto con la cámara, abrimos el editor de recorte para esa foto
   // (con las esquinas ya detectadas) apenas queda cargada en la lista.
@@ -79,28 +98,41 @@ export function Scanner({
             electrónica). Leemos el texto y detectamos el RUC del proveedor y el N° de comprobante
             automáticamente.
           </p>
-          <p className="mt-2 rounded-lg bg-celeste/10 px-3 py-2 text-xs text-navy/80">
-            💡 <span className="font-semibold">Mejor recorte:</span> escaneá con el escáner de tu
-            celular (p. ej. Cámara Samsung → “Escanear documento”) y{' '}
-            <span className="font-semibold">Compartí</span> el resultado a esta app. Lo tomamos tal
-            cual, sin volver a recortarlo.
-          </p>
+          {!nativo && (
+            <p className="mt-2 rounded-lg bg-celeste/10 px-3 py-2 text-xs text-navy/80">
+              💡 <span className="font-semibold">Mejor recorte:</span> escaneá con el escáner de tu
+              celular (p. ej. Cámara Samsung → “Escanear documento”) y{' '}
+              <span className="font-semibold">Compartí</span> el resultado a esta app. Lo tomamos tal
+              cual, sin volver a recortarlo.
+            </p>
+          )}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="btn-primary cursor-pointer sm:col-span-2">
-            <IconCamara /> Escanear con cámara
-            {/* `capture="environment"`: abre directamente la app de cámara nativa del
-                celular (Samsung Camera, máxima resolución) y devuelve la foto como
-                archivo de alta calidad. Sin `capture`, Android abre la galería. */}
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={alCapturar}
-            />
-          </label>
+          {nativo ? (
+            <button
+              type="button"
+              onClick={escanear}
+              disabled={escaneando}
+              className="btn-primary sm:col-span-2 disabled:opacity-60"
+            >
+              <IconCamara /> {escaneando ? 'Escaneando…' : 'Escanear documento'}
+            </button>
+          ) : (
+            <label className="btn-primary cursor-pointer sm:col-span-2">
+              <IconCamara /> Escanear con cámara
+              {/* `capture="environment"`: abre directamente la app de cámara nativa del
+                  celular (Samsung Camera, máxima resolución) y devuelve la foto como
+                  archivo de alta calidad. Sin `capture`, Android abre la galería. */}
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={alCapturar}
+              />
+            </label>
+          )}
           <label className="btn-ghost cursor-pointer">
             <IconGaleria /> Elegir de la galería
             {/* Solo `image/*`: abre directamente la galería de fotos, sin pasar

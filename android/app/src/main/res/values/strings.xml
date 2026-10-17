@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Escaneos SE</string>
+    <string name="title_activity_main">Escaneos SE</string>
+    <string name="package_name">com.servicioempresarial.escaneos</string>
+    <string name="custom_url_scheme">com.servicioempresarial.escaneos</string>
+</resources>
