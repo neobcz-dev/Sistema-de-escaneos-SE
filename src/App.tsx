@@ -19,6 +19,7 @@ import {
   editarImagen,
   crearMiniatura,
 } from './lib/image'
+import { detectarEsquinasOpenCV } from './lib/opencv'
 import type { ResultadoEdicion } from './components/ImageEditor'
 import { reconocerTexto } from './lib/ocr'
 import { ocrEnServidor } from './lib/ocrServidor'
@@ -196,13 +197,16 @@ export default function App() {
         // Enderezamos (deskew) por la inclinación de las líneas de texto.
         const enderezada = autoDetectar ? await enderezar(original.dataUrl) : original.dataUrl
 
-        // Detección de esquinas: primero por densidad de texto; si no sirve,
-        // por hoja clara (componente conectado más grande).
+        // Detección de esquinas: primero OpenCV (visión por computadora real:
+        // detecta la hoja por sus bordes). Si no logra, los métodos livianos.
         let esquinas: Punto[] | null = null
         if (autoDetectar) {
-          esquinas = await detectarEsquinas(enderezada)
-          if (!esquinas || !validarEsquinas(esquinas)) {
-            esquinas = await detectarEsquinasPorHoja(enderezada)
+          esquinas = await detectarEsquinasOpenCV(enderezada)
+          if (!esquinas) {
+            esquinas = await detectarEsquinas(enderezada)
+            if (!esquinas || !validarEsquinas(esquinas)) {
+              esquinas = await detectarEsquinasPorHoja(enderezada)
+            }
           }
         }
 

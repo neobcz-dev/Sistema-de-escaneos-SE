@@ -16,6 +16,7 @@
     "@capacitor/android": "^8.5.3",
     "@capacitor/core": "^8.5.3",
     "@capacitor/filesystem": "^8.1.5",
+    "@techstark/opencv-js": "^5.0.0-release.1",
     "jspdf": "^2.5.2",
     "pdfjs-dist": "^6.1.200",
     "react": "^18.3.1",

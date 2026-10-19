@@ -39,7 +39,9 @@ export default defineConfig({
       includeAssets: ['favicon.svg', 'logo.svg'],
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-        globIgnores: ['**/opencv.js'],
+        // OpenCV.js (~15 MB) se carga bajo demanda y lo cachea el navegador; no
+        // lo precacheamos (y así el build no falla por su tamaño).
+        globIgnores: ['**/opencv-*.js', '**/opencv.js'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
       manifest: {
